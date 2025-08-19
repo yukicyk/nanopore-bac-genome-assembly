@@ -1,0 +1,17 @@
+Results and large files
+results/
+data/raw/
+*.fastq
+*.fastq.gz
+*.bam
+*.bai
+
+Environments and caches
+.conda/
+.venv/
+pycache/
+.snakemake/
+.snake*
+.DS_Store
+.vscode/
+.idea/

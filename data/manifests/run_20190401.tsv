@@ -1,0 +1,7 @@
+sample_id	organism	isolate_origin	barcode_id	biosample_accession	pico_green_ng_per_uL	pool_included	comments		
+OMZ823	Treponema_denticola	dental_plaque	NB01	SAMN11253855	150.77	yes	—		
+OMZ905	Treponema_denticola	dental_plaque	NB02	SAMN11253861	145.91	yes	—		
+OMZ910	Treponema_denticola	dental_plaque	NB03	SAMN11253862	153.23	yes	—		
+OMZ294c	Treponema_denticola_CD-1	dental_plaque	NB04	SAMN11253854	143.73	yes	—		
+OMZ862	Treponema_vincentii	dental_plaque	NB05	SAMN11253848	161.90	yes	—		
+OMZ855	Treponema_sp.	dental_plaque	NB06	SAMN11253840	182.02	yes	—		
