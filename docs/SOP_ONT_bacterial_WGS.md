@@ -1,12 +1,12 @@
 
-# Title: Standard Operating Procedure (SOP) for Oxford Nanopore Bacterial Whole-Genome Sequencing (WGS)
+# Standard Operating Procedure (SOP) for Oxford Nanopore Bacterial Whole-Genome Sequencing (WGS)
 
 **Version**: 1.0
 **Effective date**: YYYY-MM-DD
-**Author**: Your Name / Lab
+**Author**: Dr. Yuki Chan / Lab
 **Approved by**: PI / QA
 **Applies to**: Bacterial isolates (pure culture)
-**Scope**: End-to-end workflow from culture to FASTQ/assemblies for ONT instruments (e.g., MinION/GridION/PromethION).
+**Scope**: End-to-end workflow from culture to sequencing and data processing FASTQ/assemblies/annotation for ONT instruments (e.g., MinION/GridION/PromethION), optional hybrid assembly with illumina shortreads.
 
 1. Purpose
 
@@ -198,6 +198,6 @@ Choose kit; follow the official ONT protocol current to your chemistry.
 - Flye, Medaka, Dorado documentation
 - Community best practices for ONT bacterial assembly
 
-Appendix A: Example commands
+Appendix A: Example commands (pending)
 
 - See Section 8 for templates; adjust threads, genome size, and models.

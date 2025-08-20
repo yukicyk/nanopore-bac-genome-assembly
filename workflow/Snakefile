@@ -1,7 +1,300 @@
-configfile: "config/config.yaml"
+# =========================
+# File: workflow/Snakefile
+# =========================
+import os
+os.environ["PATH"] = "/Users/yuki/mambaforge/bin:" + os.environ.get("PATH", "")
+from pathlib import Path
+import csv
 
+# Resolve repository root from env or Snakefile location
+_env_root = os.environ.get("REPO_ROOT", "")
+if _env_root:
+    REPO = Path(_env_root).resolve()
+else:
+    REPO = Path(__file__).resolve().parent.parent  # .../workflow -> repo root
+
+WF_DIR = REPO / "workflow"
+CONFIG = (REPO / "config" / "config.yaml").resolve()
+SAMPLES_TSV = (REPO / "config" / "samples.tsv").resolve()
+fetch_cfg = config.get("fetch", {}) if isinstance(config, dict) else {}
+SAMPLES_TSV_OUT = str((REPO / fetch_cfg.get("out", "config/samples.tsv")).resolve())
+SCRIPTS_DIR = (REPO / "scripts").resolve()
+
+# Debug print to verify paths
+print("Resolved paths:")
+print(f"  REPO        = {REPO}")
+print(f"  CONFIG      = {CONFIG} (exists={CONFIG.exists()})")
+print(f"  SAMPLES_TSV = {SAMPLES_TSV} (exists={SAMPLES_TSV.exists()})")
+print(f"  SCRIPTS_DIR = {SCRIPTS_DIR} (exists={SCRIPTS_DIR.exists()})")
+
+# Ensure helper script exists (self-contained delivery)
+HELPER_SCRIPT = SCRIPTS_DIR / "read_samples_tsv.py"
+HELPER_SCRIPT.parent.mkdir(parents=True, exist_ok=True)
+if not HELPER_SCRIPT.exists():
+    HELPER_SCRIPT.write_text("""#!/usr/bin/env python3
+import csv, sys, json
+from pathlib import Path
+
+def main(tsv_path):
+    samples = []
+    with open(tsv_path, 'r', newline='') as fh:
+        reader = csv.DictReader(fh, delimiter='\\t')
+        required = {'sample_id','platform','read_path'}
+        headers = [h.strip() for h in (reader.fieldnames or [])]
+        missing = required - set(headers)
+        if missing:
+            print(json.dumps({'error': f'missing columns: {sorted(missing)}'}))
+            sys.exit(0)
+        for row in reader:
+            sample = (row.get('sample_id') or '').strip()
+            plat = (row.get('platform') or '').strip().lower()
+            rpath = (row.get('read_path') or '').strip()
+            if not sample:
+                continue
+            samples.append({'sample_id': sample, 'platform': plat, 'read_path': rpath})
+    print(json.dumps({'samples': samples}))
+
+if __name__ == '__main__':
+    if len(sys.argv) != 2:
+        print(json.dumps({'error': 'usage: read_samples_tsv.py <samples.tsv>'}))
+        sys.exit(0)
+    main(sys.argv[1])
+""")
+    os.chmod(HELPER_SCRIPT, 0o755)
+
+# Load config.yaml if present; otherwise keep empty config
+if CONFIG.exists():
+    configfile: str(CONFIG)
+
+# Helper that safely reads nested config keys even if `config` is None
+def cfg(path, default=None):
+    # path like "fetch.enable"
+    try:
+        d = config  # may be None during parse
+        for key in path.split("."):
+            if not isinstance(d, dict):
+                return default
+            d = d.get(key, default if key == path.split(".")[-1] else {})
+        return d if d is not None else default
+    except NameError:
+        # `config` not defined yet
+        return default
+
+# =========================
+# Include manifest validator
+# =========================
+
+include: "rules/validate_manifest.smk"
+
+# Optional: expose a high-level target
+rule validate_manifests:
+    input:
+        "reports/manifest_validation.txt",
+        "reports/manifest_validation.json"
+    message:
+        "Manifest validation reports ready."
+
+
+# --------------------------------------------------------------------
+# Fetch integration configuration (unified)
+# --------------------------------------------------------------------
+FETCH_ENABLE = bool(cfg("fetch.enable", True))
+FETCH_NON_INTERACTIVE = bool(cfg("fetch.non_interactive", False))
+FETCH_THREADS = int(cfg("fetch.threads", 4))
+FETCH_SCRIPT = cfg("fetch.script", str(SCRIPTS_DIR / "fetch_or_prompt.py"))
+FETCH_ENABLE_STR = "true" if FETCH_ENABLE else "false"
+FETCH_NON_INTERACTIVE_FLAG = "--non-interactive" if FETCH_NON_INTERACTIVE else ""
+
+
+# Inputs/outputs for fetch (workflow TSV schema)
+SAMPLES_TSV = (REPO / cfg("fetch.samples", "config/samples.tsv")).resolve()
+#SAMPLES_TSV_OUT = str((REPO / fetch_cfg.get("out", "config/samples.tsv")).resolve())
+default_out = "config/samples.resolved.tsv"
+SAMPLES_TSV_OUT = str((REPO / fetch_cfg.get("out", default_out)).resolve())
+
+# Import IO helpers: must define read_samples(tsv) and raw_read_path(sample)
 include: "rules/io.smk"
 
+# -------------
+# Sample loading
+# -------------
+# Do not dereference SAMPLES_TSV_OUT at parse-time.
+def samples_list():  #io.smk: read_samples must not raise if file missing at parse time.
+    return read_samples(str(SAMPLES_TSV_OUT))
+
+def raw_reads_dict():
+    # Map sample -> read path using current TSV on disk; evaluated at job expansion time.
+    return {s: raw_read_path(s) for s in samples_list()}
+
+# Convenience handles, commented out for now, Those calls cause the FileNotFoundError before rules run.
+#SAMPLES = samples_list()
+#RAW_READS = raw_reads_dict()
+
+#print("[io.smk] REPO={} DATA_RAW={} READ_SAMPLES={}".format(
+#    os.environ.get("REPO_ROOT", REPO),
+#    REPO / "data" / "raw",
+#    SCRIPTS_DIR / "read_samples_tsv.py",
+#))
+#print("Loaded samples:", ", ".join(SAMPLES))
+#for s, p in RAW_READS.items():
+#    print(f"Sample {s}: reads -> {p}")
+
+# ---------------------------------
+# Rule: resolve_samples
+# ---------------------------------
+# Produce SAMPLES_TSV_OUT by either copying (if disabled) or fetching to fill read_path.
+rule resolve_samples:
+    input:
+        samples=str(SAMPLES_TSV)
+    output:
+        out=SAMPLES_TSV_OUT 
+    threads:
+        FETCH_THREADS
+    conda:
+        "envs/fetch.yaml"
+    message:
+        "Resolving/Fetching FASTQs -> {output.out}"
+    shell:
+        r"""
+        set -euo pipefail
+        if [ "{FETCH_ENABLE_STR}" = "true" ]; then
+            python {FETCH_SCRIPT} \
+              --samples {input.samples} \
+              --out {output.out} \
+              --threads {threads} \
+              --non-interactive \
+              --skip-existing \
+              --outdir data/raw 
+        else
+            if [ "{input.samples}" != "{output.out}" ]; then
+                mkdir -p "$(dirname {output.out})"
+                cp -f {input.samples} {output.out}
+            fi
+        fi
+        """
+# -------------------------------
+# quick self-check rule to assert header flexibility
+# -------------------------------
+# Validate samples.tsv headers using helper script, quickly validate header presence without running fetch/QC.
+rule check_samples_headers:
+    input:
+        SAMPLES_TSV_OUT
+    output:
+        touch("reports/samples_header_check.ok")
+    message:
+        "Checking samples TSV headers via helper"
+    run:
+        import json, subprocess
+        p = subprocess.run([str(HELPER_SCRIPT), str(input[0])], capture_output=True, text=True, check=True)
+        data = json.loads(p.stdout or "{}")
+        if "error" in data:
+            raise ValueError(f"samples.tsv header error: {data['error']}")
+        Path("reports").mkdir(parents=True, exist_ok=True)
+        Path(output[0]).touch()
+# -------------------------------
+# QC rules (NanoPlot + validation)
+# -------------------------------
+
+# FASTQ integrity: validate each gzipped FASTQ before QC, work on thee resolved TSV
+
+rule validate_fastq_gz:
+    input:
+        # Ensure fetch step runs first
+        fastq=lambda wc: raw_reads_dict()[wc.sample],
+        samples_tsv=SAMPLES_TSV_OUT
+
+    output:
+        touch("results/qc/{sample}/.validated")
+    conda:
+        "envs/ont-qc.yaml"
+    threads: 1
+    message:
+        "Validating gzip for {wildcards.sample}"
+    shell:
+        r"""
+        set -euo pipefail
+        zcat -t {input.fastq} >/dev/null
+        mkdir -p $(dirname {output})
+        touch {output}
+        """
+
+# Make NanoPlot QC per-sample depends on validation
+rule nanoplot_qc:
+    input:
+        reads=lambda wc: raw_reads_dict()[wc.sample],
+        validated="results/qc/{sample}/.validated"
+    output:
+        nanoplot_html=touch("results/qc/{sample}/nanoplot/NanoPlot-report.html"),
+        nanoplot_json=touch("results/qc/{sample}/nanoplot/NanoPlot-data.json"),
+        nanoplot_log=touch("results/qc/{sample}/nanoplot/NanoPlot-log.txt"),
+        readlengths=touch("results/qc/{sample}/nanoplot/readlengths.png"),
+        qlen=touch("results/qc/{sample}/nanoplot/qualityLength.png"),
+    conda:
+        "envs/ont-qc.yaml"
+    threads: 4
+    message:
+        "Running NanoPlot QC for {wildcards.sample}"
+    shell:
+        r"""
+        outdir="results/qc/{wildcards.sample}/nanoplot"
+        mkdir -p "$outdir"
+        NanoPlot \
+          --fastq {input.reads} \
+          --outdir "$outdir" \
+          --threads {threads} \
+          --verbose \
+          --maxlength 2000000 \
+          --nocolor \
+          2> "$outdir/NanoPlot-log.txt"
+
+        # Ensure declared outputs exist in case of minor version differences
+        test -f "$outdir/NanoPlot-report.html" || touch "$outdir/NanoPlot-report.html"
+        test -f "$outdir/NanoPlot-data.json" || touch "$outdir/NanoPlot-data.json"
+        test -f "$outdir/qualityLength.png" || touch "$outdir/qualityLength.png"
+        test -f "$outdir/readlengths.png" || touch "$outdir/readlengths.png"
+        """
+
+# Multi-sample index linking to each NanoPlot report
+rule qc_index:
+    input:
+        # Build list from current samples list; the per-sample htmls depend on validate -> resolve_samples
+        SAMPLES_TSV_OUT,
+        expand("results/qc/{sample}/nanoplot/NanoPlot-report.html", sample=samples_list())
+    output:
+        "results/qc/index.html"
+    message:
+        "Building QC index"
+    run:
+        out = []
+        out.append("<!doctype html><meta charset='utf-8'><title>QC index</title>")
+        out.append("<h1>QC reports</h1><ul>")
+        for s in samples_list():
+            out.append(f"<li><a href='{s}/nanoplot/NanoPlot-report.html'>{s}</a></li>")
+        out.append("</ul>")
+        Path("results/qc").mkdir(parents=True, exist_ok=True)
+        Path("results/qc/index.html").write_text("\n".join(out))
+
+# New default target
 rule all:
     input:
-        "config/samples.tsv"
+        # Ensure resolution happens, then downstream products
+        SAMPLES_TSV_OUT,
+        # Ensure validation reports are produced early
+        "reports/manifest_validation.txt",
+        "reports/manifest_validation.json",
+        # Ensure all samples have their QC reports
+        # Primary QC outputs
+        "results/qc/index.html"
+
+
+# Debuggind for the missing conda problem
+#rule debug_conda:
+#    output: "tmp/debug_conda.txt"
+#    shell:
+#        r"""
+#        set -x
+#        echo "PATH=$PATH"
+#        which conda || true
+#        ${{SNAKEMAKE_CONDA:-conda}} info --json | head -c 120 || true
+#        echo OK > {output}
+#        """

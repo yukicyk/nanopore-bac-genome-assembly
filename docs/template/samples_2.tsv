@@ -1,2 +1,3 @@
 sample_id	platform	biosample	srrs	read_path	read_path_r1	read_path_r2	barcode
-OMZ823	ont	SAMN11253855	SRR12807449				NB01
+OMZ823	ont	SAMN11253855					
+OMZ823	illumina	SAMN11253855					

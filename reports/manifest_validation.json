@@ -1,0 +1,65 @@
+{
+  "files": [
+    {
+      "path": "data/manifests/run_20190401.tsv",
+      "missing_critical": [
+        "run_id",
+        "run_date",
+        "operator",
+        "instrument_type",
+        "device_id",
+        "flowcell_id",
+        "kit_code",
+        "extraction_method",
+        "dna_concentration_ng_per_uL"
+      ],
+      "missing_recommended": [
+        "minknow_version",
+        "dorado_or_guppy_version",
+        "dorado_or_guppy_model",
+        "basecalling_mode",
+        "flowcell_chemistry",
+        "flowcell_part",
+        "barcoding_kit",
+        "source_type",
+        "sizing_method",
+        "fragment_size_N50_kb",
+        "raw_data_path",
+        "fastq_output_path",
+        "demux_output_path",
+        "backup_paths",
+        "checksum_manifest_path"
+      ],
+      "template_fields_present": 0,
+      "template_fields_total": 0
+    }
+  ],
+  "critical_missing": {
+    "run_id": 1,
+    "run_date": 1,
+    "operator": 1,
+    "instrument_type": 1,
+    "device_id": 1,
+    "flowcell_id": 1,
+    "kit_code": 1,
+    "extraction_method": 1,
+    "dna_concentration_ng_per_uL": 1
+  },
+  "recommended_missing": {
+    "minknow_version": 1,
+    "dorado_or_guppy_version": 1,
+    "dorado_or_guppy_model": 1,
+    "basecalling_mode": 1,
+    "flowcell_chemistry": 1,
+    "flowcell_part": 1,
+    "barcoding_kit": 1,
+    "source_type": 1,
+    "sizing_method": 1,
+    "fragment_size_N50_kb": 1,
+    "raw_data_path": 1,
+    "fastq_output_path": 1,
+    "demux_output_path": 1,
+    "backup_paths": 1,
+    "checksum_manifest_path": 1
+  }
+}

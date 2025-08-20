@@ -1,2 +1,18 @@
+
+fetch:
+enable: true # enable calling the fetch script
+non_interactive: true # set true for CI
+threads: 4
+samples: config/samples.tsv
+out: config/samples.resolved.tsv
+script: scripts/fetch_or_prompt.py
+
+assembler: flye        # options: flye, canu
+polisher: medaka       # options: medaka, nanopolish, both
 threads: 4
 mode: mock
+reference: null        # optional path to reference fasta for evaluation
+min_coverage: 30
+reports:
+  enable: true
+
