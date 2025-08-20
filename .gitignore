@@ -1,23 +1,35 @@
-Results and large files
-results/
-data/raw/
-*.fastq
-*.fastq.gz
-*.bam
-*.bai
-
-Environments and caches
-.conda/
-.venv/
-pycache/
+# Snakemake and environments
 .snakemake/
 .snake*
-.DS_Store
-.vscode/
-.idea/
-.snakemake/
-data/raw/
-fasterq.tmp*/
+.conda/
+.mamba/
+.venv/
+
+# Data and results
+data/
 results/
-reports/*.html
-reports/*.json
+logs/
+qc/
+reports/
+
+# Temporary downloads and caches
+fasterq.tmp*/
+~/ncbi/public/sra/
+*.sra
+pycache/
+
+# Large raw and processed files
+*.fastq
+*.fastq.gz
+*.fq
+*.fq.gz
+*.bam
+*.cram
+*.pod5
+*.fast5
+*.md5
+*.sha256
+
+# OS/editor files
+.DS_Store
+*.swp

@@ -1,0 +1,2 @@
+sample_id	barcode_id	run_id	organism	strain_or_isolate	source_type	source_detail	isolate_origin	culture_medium	culture_conditions	purity_check	purity_method	dna_concentration_ng_per_uL	input_ng_in_lib	prep_notes	read_path	biosample_accession	linked_clinical_record_id	notes
+SMP001	NB01	RUN2025_08_19	Escherichia coli	EC-01	lab_culture	colony on LB plate	environmental	LB	"37C, 200 rpm, overnight"	yes	16S PCR and Sanger	45	900	Standard ligation	/data/runs/RUN2025_08_19/demux/SMP001/fastq		CLIN-ABC-001	—

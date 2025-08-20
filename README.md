@@ -11,7 +11,7 @@
 ## Wet‑lab → Dry‑lab flow
 - Record each run in a single manifest: data/manifests/run_YYYYMMDD.tsv (Schema A+: Run Manifest & Metadata).
 - Generate the workflow table from the manifest(s): scripts/manifest_to_samples.py → config/samples.tsv (Schema B: Workflow Samples).
-- Optional: If you later obtain NCBI accessions, you can add them to config/samples.tsv (or keep a separate mapping in data/links/ if you prefer). The workflow can fetch public FASTQs only when biosample_accession is present and read_path is empty.
+- Optional: in cases we have NCBI accession IDs to the Biosamples/ SRA, but not the raw data, put the accessions in the config/samples.tsv, the workflow can fetch FASTQs from public when biosample_accession or srrs (SRA accession) is present and read_path is empty.
 
 ## Features
 - Snakemake pipeline with conda‑locked envs (optional containers).
@@ -35,9 +35,9 @@ This repository distinguishes between two related tables:
 - Schema A+ — Run Manifest & Metadata (wet‑lab centric)
 - Schema B — Workflow Samples (pipeline centric)
 
-Why two? The wet‑lab needs a comprehensive, auditable record per run; the workflow only needs a few columns to analyze reads. You maintain one detailed file per run (Schema A+) and derive a slim table for the pipeline (Schema B).
+Why two? We keep a comprehensive, auditable record of metadeata per sequencing run; while this workflow only needs a few columns to analyze sequencing reads. We maintain one detailed metadata file per experiment (Schema A+) and derive a slim table for the pipeline (Schema B).
 
-### Schema A+ — Run Manifest & Metadata (wet‑lab centric)
+### Schema A+ — Run Manifest & Metadata (wet‑lab)
 
 - File: one TSV per sequencing run (e.g., `data/manifests/run_YYYYMMDD.tsv`).
 - Audience: wet‑lab, QA/GLP, future audits and automation.
@@ -49,10 +49,10 @@ Why two? The wet‑lab needs a comprehensive, auditable record per run; the work
   - `barcode_id` (if multiplexing)
   - `biosample_accession` (leave blank initially; add after NCBI submission)
   - `fastq_path` or `fastq_guess` (if you already have per‑sample FASTQ)
-- Many additional fields are encouraged for traceability (instrument, flow cell IDs, kits, DNA QC, paths, QC metrics, etc.).
+- Additional fields are necessary for bookkeeping and traceability (instrument, flow cell IDs, kits, DNA QC, sample details, QC metrics, etc.).
 - Template: see `docs/templates/run_manifest_template.tsv`.
 
-Important: `biosample_accession` is often not known at wet‑lab time. It is optional in Schema A+. Add it later when you submit to NCBI (BioSample/SRA).
+Important: `biosample_accession` is often not available before de novo assembly. It is optional in Schema A+. Add later when data is submitted to NCBI (Bioproject/BioSample/SRA).
 
 ### Schema B — Workflow Samples (pipeline centric)
 
@@ -105,9 +105,6 @@ VALIDATE_STRICT=true snakemake --use-conda -p validate_manifests
      - demux/barcodeNN/reads.fastq.gz
    - If an explicit fastq_path/read_path is present, it takes precedence.
 
-## Outputs
-- Outputs: `assembled.fasta`, `polished.fasta`, mapping BAMs, QC metrics, annotations, summary report.
-
 ## Tips:
 - If your manifest includes fastq_path or fastq_guess, those will populate read_path automatically.
 - You can always edit config/samples.tsv to point read_path to your local FASTQ files under data/raw/.
@@ -125,9 +122,11 @@ VALIDATE_STRICT=true snakemake --use-conda -p validate_manifests
    * Run snakemake with the resolve_samples rule enabled; it fetches and fills read_path.
 
 - Rationale for optional BioSample accessions
-   - In real lab timelines, NCBI accessions are obtained after assembly/analysis or at publication time.
-   Therefore, biosample_accession is optional in both A+ and B. It is only required if you want the workflow to download public reads automatically.
+   - In real lab timelines, NCBI accessions are obtained after assembly/analysis or at publication time. Therefore, biosample_accession is optional in both A+ and B. It is only required if you want the workflow to download public reads automatically.
    You can run the entire workflow with local data and never use NCBI fetching.
+
+## Outputs
+- Outputs: `assembled.fasta`, `polished.fasta`, mapping BAMs, QC metrics, annotations, summary report.
 
 ## Compliance and good recording (GLP/GDP hints)
 - Record who/when/where, instrument identifiers, SOP version, consumable lot numbers.
@@ -146,7 +145,7 @@ python scripts/manifest_to_samples.py \
   --out config/samples.tsv \
   --default-platform ont
 
-#    Optionally, you may create config/samples.tsv by hand (tab-delimited; exact headers):
+#    Optionally, you may create config/samples.tsv manually (tab-delimited; exact headers):
 #    sample_id  platform  read_path  biosample_accession  barcode
 
 # 2) If you have local FASTQs, set read_path for each sample to your .fastq(.gz).
