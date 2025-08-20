@@ -15,3 +15,9 @@ pycache/
 .DS_Store
 .vscode/
 .idea/
+.snakemake/
+data/raw/
+fasterq.tmp*/
+results/
+reports/*.html
+reports/*.json
