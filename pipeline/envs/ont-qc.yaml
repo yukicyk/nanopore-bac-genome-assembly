@@ -1,0 +1,13 @@
+name: ont-qc
+channels: [conda-forge, bioconda, defaults]
+dependencies:
+  - python=3.11
+  - nanoplot=1.42.0
+  - nanofilt=2.8.0
+  - pigzname: ont-qc
+channels: [conda-forge, bioconda, defaults]
+dependencies:
+  - python=3.11
+  - nanoplot=1.42.0
+  - nanofilt=2.8.0
+  - pigz

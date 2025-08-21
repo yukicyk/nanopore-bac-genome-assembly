@@ -3,9 +3,11 @@ fetch:
 enable: true # enable calling the fetch script
 non_interactive: true # set true for CI
 threads: 4
-samples: config/samples.tsv
-out: config/samples.resolved.tsv
-script: scripts/fetch_or_prompt.py
+
+# Commentd out to run test samples stored in data/raw/
+# samples: config/samples.tsv
+# out: config/samples.resolved.tsv
+# script: scripts/fetch_or_prompt.py
 
 assembler: flye        # options: flye, canu
 polisher: medaka       # options: medaka, nanopolish, both
@@ -16,3 +18,10 @@ min_coverage: 30
 reports:
   enable: true
 
+samples:
+  testONT:
+    read_path: data/raw/test_small.fastq.gz
+
+reference_path: resources/references/ecoli_k12_mg1655.fasta
+fetch:
+  enable: false

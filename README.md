@@ -8,7 +8,6 @@
 - Reproducible de novo assembly pipeline for bacterial genomes using Oxford Nanopore reads, with QC, polishing, mapping‑based evaluation, and annotation.
 - For research and training only; not for diagnostic use.
 
-## Wet‑lab → Dry‑lab flow
 - Record each run in a single manifest: data/manifests/run_YYYYMMDD.tsv (Schema A+: Run Manifest & Metadata).
 - Generate the workflow table from the manifest(s): scripts/manifest_to_samples.py → config/samples.tsv (Schema B: Workflow Samples).
 - Optional: in cases we have NCBI accession IDs to the Biosamples/ SRA, but not the raw data, put the accessions in the config/samples.tsv, the workflow can fetch FASTQs from public when biosample_accession or srrs (SRA accession) is present and read_path is empty.
@@ -25,7 +24,7 @@
 
 ## Where the workflow starts
 
-- Entry point: workflow/Snakefile (Snakemake loads this file).
+- Entry point: pipeline/Snakefile (Snakemake loads this file).
 - Practical SOP position: after basecalling/demultiplexing (SOP §8.2). 
 
 ## Metadata and Schemas
@@ -59,7 +58,7 @@ Important: `biosample_accession` is often not available before de novo assembly.
 - File:
   - Input: `config/samples.tsv`
   - After fetch/resolve: `config/samples.resolved.tsv`
-- Audience: the Snakemake workflow.
+- Audience: the Snakemake pipeline.
 - Columns (this exact order is written by our helper):
   - `sample_id` (required)
   - `platform` (required: ont|illumina)
@@ -84,7 +83,7 @@ python scripts/manifest_to_samples.py \
 ### Manifest validation
 
 - The validator runs by default to validate your Schema A+ manifests against the template and recommended fields:
-          workflow/envs/validate-manifest.yaml
+          pipeline/envs/validate-manifest.yaml
 - To Run on its own:
         snakemake --use-conda -p validate_manifests
 
@@ -161,7 +160,7 @@ snakemake --use-conda --cores 8 -p
 # - resolve_samples writes an updated table to config/samples.tsv (or the configured fetch.out)
 #   and only fetches from NCBI if read_path is empty and biosample_accession is set.
 # - Fetched reads are stored under data/raw/{sample_id}.fastq.gz.
-# - The fetch environment is defined in workflow/envs/fetch.yaml (includes SRA Toolkit).
+# - The fetch environment is defined in pipeline/envs/fetch.yaml (includes SRA Toolkit).
 ```
 
 ## Data availability

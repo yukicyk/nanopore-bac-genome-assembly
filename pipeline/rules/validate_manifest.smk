@@ -1,5 +1,7 @@
+print(f"[validate_manifest.smk] REPO={REPO} CFG_DIR={CFG_DIR}")
+
 # ==============================
-# File: workflow/rules/validate_manifest.smk
+# File: pipeline/rules/validate_manifest.smk
 # ==============================
 from pathlib import Path
 import os
@@ -7,8 +9,6 @@ import json
 import csv
 import re
 
-REPO = Path(os.environ.get("REPO_ROOT", Path(__file__).resolve().parents[2])).resolve()
-DOC_TEMPLATE = (REPO / "docs" / "templates" / "run_manifest_template.tsv").resolve()
 
 # Minimal fields for Schema A+ we expect to see at wet-lab time
 CRITICAL_FIELDS = [

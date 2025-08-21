@@ -1,0 +1,16 @@
+# Data Handling and Information Governance (IG)
+
+Scope: This repository uses only public/demo data. No personal data (PHI/PII) is stored.
+
+Principles
+- Data minimisation (UK GDPR/DPA 2018): do not include identifiable data.
+- Pseudonymisation: use linked_clinical_record_id only as a pseudonymous key; keep mapping separately with access control.
+- Integrity and availability: maintain checksums (SHA256) and off-host backups for raw signals, FASTQ, and logs.
+
+Practices
+- Paths not payload: store file paths in manifests; raw data is gitignored.
+- Access control: restrict write access; use code review (PRs).
+- Retention: define lab-specific retention periods; document deletion procedures.
+- Audit trail: use Git history and release notes; record deviations in docs/Deviation_OOS_CAPA_Template.md.
+
+References: UK GDPR, DPA 2018, ALCOA(+), ISO 9001/15189 principles.

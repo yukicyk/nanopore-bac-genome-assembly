@@ -1,0 +1,37 @@
+name: Snakemake dry-run
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  dryrun:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Mambaforge
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          mamba-version: "*"
+          activate-environment: base
+          use-mamba: true
+
+      - name: Cache conda envs
+        uses: actions/cache@v4
+        with:
+          path: ~/.conda/pkgs
+          key: conda-pkgs-${{ runner.os }}-${{ hashFiles('**/envs/*.yaml') }}
+          restore-keys: |
+            conda-pkgs-${{ runner.os }}-
+
+      - name: Install Snakemake
+        shell: bash -l {0}
+        run: mamba install -y -c conda-forge -c bioconda snakemake
+
+      - name: Snakemake dry-run
+        shell: bash -l {0}
+        run: |
+          snakemake -s pipeline/Snakefile -n -p -j 2

@@ -1,0 +1,6 @@
+channels: [bioconda, conda-forge, defaults]
+dependencies:
+  - medaka=1.11.3
+  - nanopolish=0.14.0
+  - hdf5
+  - bcftools=1.18
