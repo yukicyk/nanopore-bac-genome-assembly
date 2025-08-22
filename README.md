@@ -129,18 +129,18 @@ VALIDATE_STRICT=true snakemake --use-conda -p validate_manifests
 
 ## Configuration and file locations (clarifications)
 
-  ### Manifest-based QC input table
-    - QC steps that derive from the run manifest operate on config/samples.resolved.tsv (Schema B after resolve_samples). This file is generated/updated by the resolve_samples step and is the source of truth for per-sample read paths during QC.
+### Manifest-based QC input table
+- QC steps that derive from the run manifest operate on config/samples.resolved.tsv (Schema B after resolve_samples). This file is generated/updated by the resolve_samples step and is the source of truth for per-sample read paths during QC.
 
-  ### Assembly configuration
-    - Assembly targets use entries from config.yaml to determine the active sample, input reads override (optional), and the reference for evaluation. Ensure config.yaml contains:
-    - sample: <sample_id>
-    - reads: <path to FASTQ if overriding samples table> (optional)
-    - reference: resources/reference/ecoli_k12_mg1655.fasta (or another appropriate reference)
+### Assembly configuration
+- Assembly targets use entries from config.yaml to determine the active sample, input reads override (optional), and the reference for evaluation. Ensure config.yaml contains:
+  - sample: <sample_id>
+  - reads: <path to FASTQ if overriding samples table> (optional)
+  - reference: resources/reference/ecoli_k12_mg1655.fasta (or another appropriate reference)
 
-  ### Reference genome location
-    - The canonical E. coli K-12 MG1655 reference used for verification is stored at:
-      resources/reference/ecoli_k12_mg1655.fasta
+### Reference genome location
+- The canonical E. coli K-12 MG1655 reference used for verification is stored at:
+ resources/reference/ecoli_k12_mg1655.fasta
 
 ## Compliance and good recording (GLP/GDP hints)
 - Record who/when/where, instrument identifiers, SOP version, consumable lot numbers.
