@@ -25,7 +25,7 @@
 ## Where the workflow starts
 
 - Entry point: pipeline/Snakefile (Snakemake loads this file).
-- Practical SOP position: pipeline starts after basecalling/demultiplexing (SOP §8.2). 
+- Practical SOP position: pipeline starts after basecalling/demultiplexing [SOP §8.2](docs/SOP_ONT_bacterial_WGS.md). 
 
 ## Metadata and Schemas
 

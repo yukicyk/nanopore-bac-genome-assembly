@@ -372,42 +372,58 @@ rule flye_assemble:
 # Racon polishing x2 (minimap2 + racon)
 ########################################
 
+
+rule racon_r1:
+    input:
+        reads="results/filtered/{sample}.fastq.gz",
+        paf="results/assembly/{sample}/r1.paf.gz",
+        draft="results/assembly/{sample}/flye/assembly.fasta"
+    output:
+        "results/assembly/{sample}/racon1.fasta"
+    threads: int(cfg("threads.racon", 4))
+    conda: "envs/polish.yaml"
+    shell:
+        r"""
+        set -euo pipefail
+        racon -t {threads} {input.reads} {input.paf} {input.draft} > {output}
+        """
+
+rule racon_r2:
+    input:
+        reads="results/filtered/{sample}.fastq.gz",
+        paf="results/assembly/{sample}/r2.paf.gz",
+        draft="results/assembly/{sample}/racon1.fasta"
+    output:
+        "results/assembly/{sample}/racon2.fasta"
+    threads: int(cfg("threads.racon", 4))
+    conda: "envs/polish.yaml"
+    shell:
+        r"""
+        set -euo pipefail
+        racon -t {threads} {input.reads} {input.paf} {input.draft} > {output}
+        """
+
 rule map_to_asm_r1:
     input:
         asm="results/assembly/{sample}/flye/assembly.fasta",
-        reads=get_reads_for_assembly
+        reads="results/filtered/{sample}.fastq.gz"
     output:
         "results/assembly/{sample}/r1.paf.gz"
-    threads: int(cfg("threads.minimap2", 8))
+    threads: int(cfg("threads.minimap2", 4))
     conda: "envs/polish.yaml"
     shell:
         r"""
         set -euo pipefail
         minimap2 -x map-ont -t {threads} {input.asm} {input.reads} | gzip -c > {output}
-        """
-
-rule racon_r1:
-    input:
-        reads=get_reads_for_assembly,
-        paf="results/assembly/{sample}/r1.paf.gz",
-        asm="results/assembly/{sample}/flye/assembly.fasta"
-    output:
-        "results/assembly/{sample}/racon1.fasta"
-    threads: int(cfg("threads.racon", 8))
-    conda: "envs/polish.yaml"
-    shell:
-        r"""
-        set -euo pipefail
-        gzip -cd {input.paf} | racon -t {threads} {input.reads} - {input.asm} > {output}
         """
 
 rule map_to_asm_r2:
     input:
         asm="results/assembly/{sample}/racon1.fasta",
-        reads=get_reads_for_assembly
+        reads="results/filtered/{sample}.fastq.gz"
     output:
         "results/assembly/{sample}/r2.paf.gz"
-    threads: int(cfg("threads.minimap2", 8))
+    threads: int(cfg("threads.minimap2", 4))
     conda: "envs/polish.yaml"
     shell:
         r"""
@@ -415,20 +431,6 @@ rule map_to_asm_r2:
         minimap2 -x map-ont -t {threads} {input.asm} {input.reads} | gzip -c > {output}
         """
 
-rule racon_r2:
-    input:
-        reads=get_reads_for_assembly,
-        paf="results/assembly/{sample}/r2.paf.gz",
-        asm="results/assembly/{sample}/racon1.fasta"
-    output:
-        "results/assembly/{sample}/racon2.fasta"
-    threads: int(cfg("threads.racon", 8))
-    conda: "envs/polish.yaml"
-    shell:
-        r"""
-        set -euo pipefail
-        gzip -cd {input.paf} | racon -t {threads} {input.reads} - {input.asm} > {output}
-        """
 
 ########################################
 # Medaka polishing
