@@ -1,50 +1,56 @@
-rule medaka_polish:
-  input:
-    asm="results/{sample}/assembly/assembly.fasta",
-    fq=lambda wc: fastq(wc.sample)
-  output:
-    fa="results/{sample}/polish/medaka_consensus.fasta"
-  conda: "../envs/polish.yaml"
-  threads: config["threads"]
-  shell:
-    "minimap2 -ax map-ont {input.asm} {input.fq} | samtools sort -o results/{wildcards.sample}/polish/reads.bam - && "
-    "samtools index results/{wildcards.sample}/polish/reads.bam && "
-    "medaka_consensus -i {input.fq} -d {input.asm} -o results/{wildcards.sample}/polish -t {threads} && "
-    "cp results/{wildcards.sample}/polish/consensus.fasta {output.fa}"
+#
+# pipeline/rules/polish.smk
+# Handles assembly polishing.
+#
 
-rule nanopolish_index:
-  input: fq=lambda wc: fastq(wc.sample)
-  output: touch("results/{sample}/polish/nanopolish.indexed")
-  conda: "../envs/polish.yaml"
-  shell: "nanopolish index {input} && touch {output}"
+# --- Racon Polishing ---
+rule map_for_racon_r1:
+    input:
+        asm="results/assembly/{sample}/assembly.fasta",
+        reads=get_reads
+    output:
+        temp("results/polish/{sample}/r1.paf.gz")
+    threads: config.get("threads", {}).get("minimap2", 8)
+    conda: "envs/polish.yaml"
+    shell: "minimap2 -x map-ont -t {threads} {input.asm} {input.reads} | gzip -c > {output}"
 
-rule nanopolish_polish:
-  input:
-    asm="results/{sample}/assembly/assembly.fasta",
-    fq=lambda wc: fastq(wc.sample),
-    idx="results/{sample}/polish/nanopolish.indexed"
-  output:
-    fa="results/{sample}/polish/nanopolish_consensus.fasta"
-  conda: "../envs/polish.yaml"
-  threads: config["threads"]
-  shell:
-    "minimap2 -ax map-ont {input.asm} {input.fq} | samtools sort -o results/{wildcards.sample}/polish/np.bam - && "
-    "samtools index results/{wildcards.sample}/polish/np.bam && "
-    "python -m nanopolish_makerange {input.asm} | parallel -P {threads} "
-    "'nanopolish variants --consensus results/{wildcards.sample}/polish/np.{{1}}.fa -w {{1}} "
-    "-r {input.fq} -b results/{wildcards.sample}/polish/np.bam -g {input.asm} -t 1' && "
-    "python -m nanopolish_merge {input.asm} results/{wildcards.sample}/polish/np.*.fa > {output.fa}"
+rule racon_r1:
+    input:
+        draft="results/assembly/{sample}/assembly.fasta",
+        reads=get_reads,
+        paf="results/polish/{sample}/r1.paf.gz"
+    output:
+        "results/polish/{sample}/racon1.fasta"
+    threads: config.get("threads", {}).get("racon", 8)
+    conda: "envs/polish.yaml"
+    shell: "racon -t {threads} {input.reads} {input.paf} {input.draft} > {output}"
 
-rule polish:
-  input: "results/{sample}/assembly/assembly.fasta"
-  output: "results/{sample}/polish/final.fasta"
-  run:
-    pol = config.get("polisher", "medaka")
-    src = f"results/{wildcards.sample}/polish/medaka_consensus.fasta" if pol in ["medaka","both"] else f"results/{wildcards.sample}/polish/nanopolish_consensus.fasta"
-    if pol == "both":
-      shell("snakemake -j1 results/{wildcards.sample}/polish/medaka_consensus.fasta")
-      shell("snakemake -j1 results/{wildcards.sample}/polish/nanopolish_consensus.fasta")
-      src = f"results/{wildcards.sample}/polish/medaka_consensus.fasta"
-    import shutil, os
-    os.makedirs(os.path.dirname(output[0]), exist_ok=True)
-    shutil.copyfile(src, output[0])
+# You can chain a second round of Racon similarly if needed.
+
+# --- Medaka Polishing ---
+rule medaka:
+    input:
+        asm="results/polish/{sample}/racon1.fasta", # Input is Racon-polished assembly
+        reads=get_reads
+    output:
+        directory("results/polish/{sample}/medaka")
+    threads: config.get("threads", {}).get("medaka", 8)
+    conda: "envs/medaka.yaml"
+    params:
+        model=config.get("medaka_model", "r104_e81_sup_g615")
+    shell:
+        "medaka_consensus -i {input.reads} -d {input.asm} -o {output} -t {threads} -m {params.model}"
+
+# --- Final Polished Assembly Selection ---
+def get_final_polished_assembly(wildcards):
+    """Selects the final polished assembly based on config."""
+    # For now, we assume Medaka is the final step. This can be expanded.
+    return "results/polish/{wildcards.sample}/medaka/consensus.fasta"
+
+rule polish_final:
+    input:
+        get_final_polished_assembly
+    output:
+        "results/polish/{sample}/final_assembly.fasta"
+    shell:
+        "cp {input} {output}"

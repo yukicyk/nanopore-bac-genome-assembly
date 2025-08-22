@@ -1,244 +1,70 @@
 # ===================================================================
-# File: pipeline/Snakefile (Refactored for Multi-Sample Processing)
+# Nanopore Bacterial Genome Assembly Pipeline - Main Snakefile
 # ===================================================================
 
 from pathlib import Path
 import pandas as pd
 
 # --- 1. Configuration and Path Setup ---
-# Use the workflow.basedir to establish absolute paths, making the pipeline portable.
 PIPELINE_DIR = Path(workflow.basedir).resolve()
 REPO = PIPELINE_DIR.parent
 CFG_DIR = REPO / "config"
-SCRIPTS_DIR = REPO / "scripts"
 RULES_DIR = PIPELINE_DIR / "rules"
-
-# Load the main config file.
 configfile: str(CFG_DIR / "config.yaml")
 
-# --- 2. Include Helper Rules ---
-# Note: io.smk should provide helper functions, define them here for clarity.
-include: str(RULES_DIR / "io.smk")
-include: str(RULES_DIR / "validate_manifest.smk")
-
-# --- 3. Define Input Sample Sheets ---
-# These paths are the single source of truth for defining input samples.
-MANIFESTS_GLOB = str(REPO / "data" / "manifests" / "*.tsv")
+# --- 2. Define Input Sample Sheets ---
 SAMPLES_TSV_IN = (REPO / config.get("samples_in", "config/samples.tsv")).resolve()
 SAMPLES_TSV_OUT = (REPO / config.get("samples_resolved", "config/samples.resolved.tsv")).resolve()
 
-# --- 4. Load Samples into a Pandas DataFrame ---
-# CHANGED: This is the core change. The sample sheet is loaded *once* at the start.
-# This DataFrame becomes the central object for looking up sample information.
-# It runs after the resolve_samples rule has created the final TSV.
+# --- 3. Load and Validate Samples ---
 def load_samples_df(path):
-    """Loads the samples TSV into a pandas DataFrame, setting sample_id as the index."""
-    if not Path(path).exists():
-        # This can happen on the first run; return an empty DF.
-        return pd.DataFrame()
+    if not Path(path).exists(): return pd.DataFrame()
     df = pd.read_csv(path, sep="\t", dtype=str).fillna("")
     if "sample_id" not in df.columns or df.sample_id.isnull().any():
-        raise ValueError("`sample_id` column is missing or contains empty values in samples TSV.")
+        raise ValueError("`sample_id` column is missing or contains empty values.")
     return df.set_index("sample_id", drop=False)
 
 SAMPLES_DF = load_samples_df(SAMPLES_TSV_OUT)
-SAMPLES = SAMPLES_DF.index.tolist() # Get a simple list of all sample IDs.
+SAMPLES = SAMPLES_DF.index.tolist()
 
-# --- 5. Helper Functions for Dynamic File Paths ---
-# CHANGED: These helpers now use the SAMPLES_DF to find the correct read paths.
-# This replaces the old config-driven `reads_path` function.
+# --- 4. Global Helper Functions & Parameters ---
 def get_reads(wildcards, is_filtered=True):
-    """
-    Get the path to raw or filtered reads for a given sample.
-    Handles both ONT and Illumina platforms based on the samples DataFrame.
-    """
     sample_id = wildcards.sample
-    if sample_id not in SAMPLES_DF.index:
-        raise ValueError(f"Sample '{sample_id}' not found in {SAMPLES_TSV_OUT}")
-
-    # If filtering is enabled in config.yaml and we want the filtered output
     if config.get("filtering", {}).get("enabled", False) and is_filtered:
         return f"results/filtered/{sample_id}.fastq.gz"
-
-    # Otherwise, return the original raw reads from the sample sheet
     platform = SAMPLES_DF.loc[sample_id, "platform"]
-    if platform == "ont":
-        return SAMPLES_DF.loc[sample_id, "read_path"]
-    elif platform == "illumina":
-        # For Illumina, we might need R1 and R2. This example returns R1 for simplicity.
-        # A real Illumina rule would need to handle both.
-        return SAMPLES_DF.loc[sample_id, "read_path_r1"] # and read_path_r2
-    else:
-        raise ValueError(f"Unsupported platform '{platform}' for sample '{sample_id}'")
+    return SAMPLES_DF.loc[sample_id, "read_path"] if platform == "ont" else SAMPLES_DF.loc[sample_id, "read_path_r1"]
 
-# --- 6. Global Parameters from config.yaml ---
-# These are global settings, not sample-specific inputs.
 REF = config.get("reference", "resources/reference/ecoli_k12_mg1655.fasta")
+USE_PROKKA = bool(config.get("annotation", {}).get("use_prokka", True))
 USE_BAKTA = bool(config.get("annotation", {}).get("use_bakta", False))
-USE_PROKKA = bool(config.get("annotation", {}).get("use_prokka", False))
+
 
 # ===================================================================
-# BEGIN SNAKEMAKE RULES
+# Include Rule Modules
 # ===================================================================
 
-# --- Rule to generate the initial samples.tsv from manifests ---
-rule build_samples_from_manifests:
-    output:
-        str(SAMPLES_TSV_IN)
-    message: "Generating config/samples.tsv from manifests."
-    params:
-        script=str(SCRIPTS_DIR / "manifest_to_samples.py"),
-        glob=MANIFESTS_GLOB,
-        platform=config.get("default_platform", "ont")
-    shell:
-        "python {params.script} --manifests_glob '{params.glob}' --out {output} --default-platform {params.platform}"
-
-# --- Rule to fetch data from SRA if read paths are missing ---
-rule resolve_samples:
-    input:
-        str(SAMPLES_TSV_IN)
-    output:
-        str(SAMPLES_TSV_OUT)
-    threads: config.get("fetch", {}).get("threads", 4)
-    conda: "envs/fetch.yaml"
-    params:
-        script=str(SCRIPTS_DIR / "fetch_or_prompt.py"),
-        enabled=config.get("fetch", {}).get("enable", True)
-    message: "Resolving/Fetching FASTQs -> {output}"
-    shell:
-        """
-        set -euo pipefail
-        if {params.enabled}; then
-            python {params.script} --samples {input} --out {output} --threads {threads} --non-interactive --skip-existing --outdir data/raw
-        else
-            # If fetching is disabled, the resolved file is just a copy of the input.
-            if [ "{input}" != "{output}" ]; then
-                mkdir -p "$(dirname {output})"
-                cp -f {input} {output}
-            fi
-        fi
-        """
-
-# --- Rule to validate the final sample sheet ---
-rule check_samples_integrity:
-    input:
-        str(SAMPLES_TSV_OUT)
-    output:
-        touch("reports/samples_integrity_check.ok")
-    message: "Validating final samples TSV schema and path consistency."
-    run:
-        # The SAMPLES_DF loading at the top of the Snakefile now serves as the primary validation.
-        # If it loads without error, the basic structure is okay.
-        # We can add more detailed checks here if needed.
-        if SAMPLES_DF.empty and Path(input[0]).exists():
-            raise ValueError(f"Sample sheet {input[0]} loaded but resulted in an empty sample list.")
-        Path(output[0]).touch()
-
-# ===================================================================
-# Assembly Workflow Rules (Now fully data-driven)
-# ===================================================================
-
-# --- All other rules (filtering, assembly, polishing, etc.) go here ---
-
-########################################
-# Filtering (optional, Filtlong)
-########################################
-rule filter_reads:
-    input:
-        # Use the helper to get the *unfiltered* reads
-        reads=lambda wc: get_reads(wc, is_filtered=False)
-    output:
-        "results/filtered/{sample}.fastq.gz"
-    threads: config.get("threads", {}).get("filtlong", 4)
-    conda: "envs/filter.yaml"
-    params:
-        enabled=config.get("filtering", {}).get("enabled", False),
-        min_len=config.get("filtering", {}).get("min_length", 1000),
-        keep_pct=config.get("filtering", {}).get("keep_percent", 95)
-    shell:
-        r"""
-        set -euo pipefail
-        if {params.enabled}; then
-            filtlong --min_length {params.min_len} --keep_percent {params.keep_pct} {input.reads} | gzip -c > {output}
-        else
-            # If disabled, create a symlink to the original file.
-            mkdir -p "$(dirname {output})"
-            ln -sr {input.reads} {output}
-        fi
-        """
-
-########################################
-# Assembly (Flye)
-########################################
-rule flye_assemble:
-    input:
-        # CHANGED: Use the unified helper function
-        reads=get_reads
-    output:
-        asm="results/assembly/{sample}/flye/assembly.fasta",
-        outdir=directory("results/assembly/{sample}/flye")
-    threads: config.get("threads", {}).get("flye", 8)
-    conda: "envs/flye.yaml"
-    params:
-        genome_size=config.get("genome_size", "4.6m")
-    shell:
-        r"""
-        set -euo pipefail
-        # This check is crucial for good error messages
-        test -s {input.reads} || (echo "ERROR: Input reads file is missing or empty: {input.reads}" >&2; exit 1)
-        flye --nano-raw {input.reads} --genome-size {params.genome_size} --threads {threads} --out-dir {output.outdir}
-        # Normalize output name
-        if [ -f "{output.outdir}/assembly.fasta.gz" ]; then
-            gzip -dc "{output.outdir}/assembly.fasta.gz" > "{output.asm}"
-        elif [ ! -f "{output.asm}" ]; then
-            echo "Flye did not produce the expected assembly file." >&2
-            exit 1
-        fi
-        """
-
-########################################
-# Medaka polishing (with bug fix)
-########################################
-rule medaka:
-    input:
-        reads=get_reads,
-        asm="results/assembly/{sample}/racon2.fasta" # Assuming Racon is run
-    output:
-        # Define the directory to handle all of medaka's outputs
-        outdir=directory("results/assembly/{sample}/medaka")
-    threads: config.get("threads", {}).get("medaka", 8)
-    conda: "envs/medaka.yaml"
-    params:
-        model=config.get("medaka_model", "r104_e81_sup_g615")
-    shell:
-        r"""
-        set -euo pipefail
-        medaka_consensus \
-          -i {input.reads} \
-          -d {input.asm} \
-          -o {output.outdir} \
-          -t {threads} \
-          -m {params.model}
-        # BUGFIX: The old command had a copy-paste error. This is now clean.
-        # Also, we don't need to create symlinks, Snakemake knows the output dir.
-        """
+include: str(RULES_DIR / "validate_manifest.smk")
+include: str(RULES_DIR / "qc.smk")
+include: str(RULES_DIR / "assemble.smk")
+include: str(RULES_DIR / "polish.smk")
+include: str(RULES_DIR / "evaluation.smk")
+include: str(RULES_DIR / "annotation.smk")
+include: str(RULES_DIR / "report.smk")  # <-- ADD THIS LINE
 
 # ===================================================================
 # Final Target Rule (`all`)
 # ===================================================================
 rule all:
     input:
-        # Initial setup files
-        "reports/samples_integrity_check.ok",
+        # Manifest validation report
         "reports/manifest_validation.txt",
+        
+        # Final Summary Report (depends on everything else)
+        "reports/assembly_summary_report.md", # <-- ADD THIS LINE
 
-        # QC deliverables for ALL samples found in the sheet
-        # expand("results/qc/{sample}/nanoplot/NanoPlot-report.html", sample=SAMPLES),
-
-        # Assembly deliverables for ALL samples
-        expand("results/assembly/{sample}/final.fasta", sample=SAMPLES),
-        expand("results/qc/{sample}/quast/report.txt", sample=SAMPLES),
-
-        # Optional annotation deliverables for ALL samples
-        expand("results/annotation/{sample}/bakta/annotation.gff", sample=SAMPLES) if USE_BAKTA else [],
-        expand("results/annotation/{sample}/prokka/{sample}.gff", sample=SAMPLES) if USE_PROKKA else []
+        # Individual sample deliverables (can be removed if the summary is sufficient,
+        # but it's good practice to keep them for explicit dependency tracking)
+        expand("results/polish/{sample}/final_assembly.fasta", sample=SAMPLES),
+        expand("results/evaluation/{sample}/quast/report.tsv", sample=SAMPLES),
+        expand("results/annotation/{sample}/prokka/{sample}.gff", sample=SAMPLES) if USE_PROKKA else [],

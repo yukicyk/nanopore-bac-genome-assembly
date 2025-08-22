@@ -1,187 +1,152 @@
-# ONT Bacterial Genome Assembly (Research Demo) — reproducible pipeline with GLP/GMP‑inspired documentation
+# Standard Operating Procedure (SOP) for Oxford Nanopore Bacterial Whole-Genome Sequencing (WGS)
 
-## Overview
-- Oral Treponema WGS (ONT MinION + Illumina HiSeq): legacy records (2015–2020), a verified 2019 run manifest, SOPs, and an updated Snakemake workflow for new projects.
-- Public data linked via NCBI (PRJNA284866). Includes mock manifests for demo/testing. No patient‑identifiable data.
+**Version**: 1.1
+**Effective date**: 2025-08-22
+**Author**: Dr. Yuki Chan / Lab
+**Approved by**: PI / QA
+**Applies to**: Bacterial isolates (pure culture)
+**Scope**: End-to-end workflow from culture to sequencing and data processing for ONT instruments, resulting in high-quality assemblies and associated reports.
 
-## Purpose
-- Reproducible de novo assembly pipeline for bacterial genomes using Oxford Nanopore reads, (optional, illumina short reads), with QC, polishing, mapping‑based evaluation, and annotation.
-- For research and training only; not for diagnostic use.
+## 1. Purpose
 
-- Record each run in a single manifest: data/manifests/run_YYYYMMDD.tsv (Schema A+: Run Manifest & Metadata). See the [run manifest guide](docs/run_manifest_README.md).
-- Generate the workflow table from the manifest(s): scripts/manifest_to_samples.py → config/samples.tsv (Schema B: Workflow Samples).
-- Optional: In case we have NCBI accessions for the Biosamples/ SRA, but not the raw data, the workflow can fetch FASTQs with either biosample_accession or srrs (SRA accession) in config/samples.tsv when read_path is empty, utilizing fetch_or_prompt.py
+To describe standardized procedures for extracting high-molecular-weight (HMW) DNA from bacterial isolates, preparing Oxford Nanopore sequencing libraries, running ONT flow cells, and performing a reproducible bioinformatics analysis to generate high-quality genome assemblies.
 
-## Features
-- Snakemake pipeline with conda‑locked envs (optional containers).
-- Assemblers: Flye.
-- Polishing: Racon, Medaka and/or Nanopolish.
-- Read mapping: minimap2 (ONT) and BWA‑MEM (Illumina).
-- QC: QUAST; optional CheckM.
-- Annotation: Bakta and/or Prokka.
-- Documentation pack: SOP, QC acceptance criteria, deviation/OOS template, validation plan.
-- CI: dry‑run on tiny test data.
+## 2. Responsibilities
 
-## Where the workflow starts
+- **Operator**: Performs wet-lab procedures, instrument setup, and initial QC.
+- **Bioinformatics lead**: Manages and executes the bioinformatics pipeline, reviews QC, and archives data.
+- **QA/PI**: Reviews and approves results, deviations, and SOP updates.
 
-- Entry point: pipeline/Snakefile (Snakemake loads this file).
-- Practical SOP position: pipeline starts after basecalling/demultiplexing [SOP §8.2](docs/SOP_ONT_bacterial_WGS.md). 
+## 3. Safety
 
-## Metadata and Schemas
+- Follow institutional biosafety procedures. For detailed hazards, see the project's **[Risk_Assessment_and_Biosafety.md](Risk_Assessment_and_Biosafety.md)**.
+- Wear appropriate PPE: lab coat, gloves, eye protection.
+- Handle all chemicals according to their Safety Data Sheet (SDS).
 
-This repository distinguishes between two related tables:
+## 4. Definitions and Abbreviations
 
-- Schema A+ — Run Manifest & Metadata (wet‑lab centric)
-- Schema B — Workflow Samples (pipeline centric)
+- **ONT**: Oxford Nanopore Technologies
+- **WGS**: Whole-genome sequencing
+- **HMW**: High-molecular-weight
+- **SOP**: Standard Operating Procedure
+- **OOS/OOT**: Out of Specification / Out of Trend.
+- **CAPA**: Corrective and Preventive Action.
 
-Why two? We keep a comprehensive, auditable record of metadeata per sequencing run; while this workflow only needs a few columns to analyze sequencing reads. We maintain one detailed metadata file per experiment (Schema A+) and derive a slim table for the pipeline (Schema B).
+## 5. Materials and Equipment
 
-### Schema A+ — Run Manifest & Metadata (wet‑lab)
+- **Instruments**: ONT MinION/GridION/PromethION; compatible computer with GPU and ≥2 TB storage.
+- **Flow cells**: R9.4.1 or R10.4.1 (e.g., FLO-MIN114).
+- **Library kits**: Ligation (e.g., SQK-LSK114) or Rapid Barcoding (e.g., SQK-RBK114).
+- **DNA extraction**: HMW DNA kit (e.g., Qiagen Genomic-tip 100/G).
+- **Quantification**: Qubit dsDNA HS kit.
+- **Software**: MinKNOW, Dorado/Guppy, and the `nanopore-bac-genome-assembly` Snakemake pipeline.
 
-- File: one TSV per sequencing run (e.g., `data/manifests/run_YYYYMMDD.tsv`).
-- Audience: wet‑lab, QA/GLP, future audits and automation.
-- Content: both run‑level and sample‑level fields in a single table (run fields repeated per row).
-- Required column now:
-  - `sample_id`
-- Optional but recommended:
-  - `platform` (ont|illumina)
-  - `barcode_id` (if multiplexing)
-  - `biosample_accession` (leave blank initially; add after NCBI submission)
-  - `fastq_path` or `fastq_guess` (if you already have per‑sample FASTQ)
-- Additional fields are necessary for bookkeeping and traceability (instrument, flow cell IDs, kits, DNA QC, sample details, QC metrics, etc.).
-- Template: see `docs/templates/run_manifest_template.tsv`.
+## 6. Sample Requirements
 
-Important: `biosample_accession` is often not available before de novo assembly. It is optional in Schema A+. Add later when data is submitted to NCBI (Bioproject/BioSample/SRA).
+- **Input**: Pure, single-colony bacterial culture.
+- **Purity**: Confirmed by streaking. For detailed purity methods, see the run manifest template.
+- **DNA Input (Ligation)**:
+  - Concentration: ≥20–50 ng/µL
+  - Total mass: 400–1000 ng
+  - A260/280: 1.8–2.0; A260/230: ≥2.0
+  - Fragment size: Majority >20 kb.
+- **Acceptance Criteria**: For specific thresholds, refer to **[QC_Acceptance_Criteria.md](QC_Acceptance_Criteria.md)**.
 
-### Schema B — Workflow Samples (pipeline centric)
+## 7. Procedure
 
-- File:
-  - Input: `config/samples.tsv`
-  - After fetch/resolve: `config/samples.resolved.tsv`
-- Audience: the Snakemake pipeline.
-- Columns (this exact order is written by our helper):
-  - `sample_id` (required)
-  - `platform` (required: ont|illumina)
-  - `read_path` (required column; value may be empty if using fetch)
-  - `biosample_accession` (optional; required only if you want the workflow to fetch from NCBI)
-  - `barcode` (optional)
-- Behavior:
-  - If `read_path` points to an existing `.fastq(.gz)`, the workflow uses it.
-  - If `read_path` is empty and `biosample_accession` is present, the `resolve_samples` rule can fetch reads from NCBI SRA into `data/raw/{platform}.{sample_id}.fastq.gz` and write `config/samples.resolved.tsv`.
-  - If both `read_path` and `biosample_accession` are empty, fetching is skipped for that sample.
+(Sections 7.1 - 7.7 remain largely the same, covering Culture, DNA Extraction, QC, Library Prep, and Sequencing Run)
 
-### From Schema A+ to Schema B
+- **Documentation**: For every run, create a new run manifest file based on **[run_manifest_template.tsv](../data/manifests/run_manifest_template.tsv)**. Record all wet-lab and instrument parameters as specified in **[run_manifest_README.md](run_manifest_README.md)**.
 
-Use the helper to convert your manifest(s) into a workflow‑ready table:
+## 8. Bioinformatics Workflow
 
-```bash
-python scripts/manifest_to_samples.py \
-  --manifests_glob "data/manifests/*.tsv" \
-  --out config/samples.tsv \
-  --default-platform ont
-```
-### Manifest validation
+This section details the use of the `nanopore-bac-genome-assembly` Snakemake pipeline.
 
-- The validator runs by default to validate your Schema A+ manifests against the template and recommended fields:
-          pipeline/envs/validate-manifest.yaml
-- To Run on its own:
-        snakemake --use-conda -p validate_manifests
+### 8.1 Basecalling and Demultiplexing
 
-- Fail the workflow if critical fields are missing:
-VALIDATE_STRICT=true snakemake --use-conda -p validate_manifests
-- To skip validation entirely (not recommended), run specific downstream targets instead of all, e.g.:
-        snakemake --use-conda -p results/qc/summary.tsv
-- Reports:
-   - reports/manifest_validation.txt
-   - reports/manifest_validation.json
+- After the run, perform basecalling and demultiplexing using the latest recommended version of **Dorado** or **Guppy**.
+- **Example (Dorado)**:
+  ```bash
+  # Basecall raw POD5 files
+  dorado basecaller sup <model> <input_pod5_dir> > basecalls.bam
 
-- Automatic read_path inference
-   - When your manifest includes demux_output_path and barcode_id, manifest_to_samples.py will try to infer per-sample FASTQ paths using common Dorado/Guppy layouts:
-     - demux/barcodeNN/*.fastq.gz
-     - demux/barcodeNN/fastq_pass/*.fastq.gz
-     - demux/barcodeNN.fastq.gz
-     - demux/barcodeNN_*.fastq.gz
-     - demux/barcodeNN/reads.fastq.gz
-   - If an explicit fastq_path/read_path is present, it takes precedence.
+  # Demultiplex using the BAM output
+  dorado demux --kit-name <KIT_NAME> --output-dir demux/ basecalls.bam
+  ```
+- Record the basecaller version and model used in the run manifest.
 
-## Tips:
-- If your manifest includes fastq_path or fastq_guess, those will populate read_path automatically.
-- You can always edit config/samples.tsv to point read_path to your local FASTQ files under data/raw/.
+### 8.2 Pipeline Setup and Configuration
 
-## Typical workflows
-- Local FASTQs (new analyses)
+The pipeline uses two main types of configuration:
 
-   * Maintain a detailed run manifest (Schema A+) during the experiment.
-   * Convert to Schema B and ensure read_path points to your local .fastq.gz.
-   * Run the pipeline. No NCBI fetch happens.
-   * NCBI/public re‑analysis (no local FASTQs)
+1.  **Run Manifests (Schema A+)**:
+    - These are your primary experimental records. Before running the pipeline, ensure you have created or updated a manifest file in `data/manifests/` for your run.
+    - This file contains detailed metadata about the run and samples. For guidance, see **[run_manifest_README.md](run_manifest_README.md)**.
 
-- Convert to Schema B. Leave read_path empty.
-   * Add biosample_accession (when available).
-   * Run snakemake with the resolve_samples rule enabled; it fetches and fills read_path.
+2.  **Pipeline Configuration (`config/config.yaml`)**:
+    - This file controls the *parameters* and *behavior* of the pipeline (e.g., thread counts, tool choices, filtering settings).
+    - It does **not** define which samples to run. The pipeline automatically discovers all samples from the manifests.
 
-- Rationale for optional BioSample accessions
-   - In real lab timelines, NCBI accessions are obtained after assembly/analysis or at publication time. Therefore, biosample_accession is optional in both A+ and B. It is only required if you want the workflow to download public reads automatically.
-   You can run the entire workflow with local data and never use NCBI fetching.
+### 8.3 Running the Pipeline
 
-## Outputs
-- Outputs: `assembled.fasta`, `polished.fasta`, mapping BAMs, QC metrics, annotations, summary report.
+The workflow is executed using a single `snakemake` command.
 
-## Configuration and file locations (clarifications)
+1.  **Step 1: Convert Manifests to a Sample Sheet**
+    - The pipeline will automatically perform this step. It reads all manifests in `data/manifests/` and generates the primary pipeline input file: `config/samples.tsv` (Schema B). This is handled by the `build_samples_from_manifests` rule.
 
-### Manifest-based QC input table
-- QC steps that derive from the run manifest operate on config/samples.resolved.tsv (Schema B after resolve_samples). This file is generated/updated by the resolve_samples step and is the source of truth for per-sample read paths during QC.
+2.  **Step 2: (Optional) Fetch Public Data**
+    - If any sample in `config/samples.tsv` is missing a local read path but has a `biosample_accession`, the `resolve_samples` rule will attempt to download the data from NCBI SRA.
+    - This generates the final, authoritative sample sheet: `config/samples.resolved.tsv`.
 
-### Assembly configuration
-- Assembly targets use entries from config.yaml to determine the active sample, input reads override (optional), and the reference for evaluation. Ensure config.yaml contains:
-  - sample: <sample_id>
-  - reads: <path to FASTQ if overriding samples table> (optional)
-  - reference: resources/reference/ecoli_k12_mg1655.fasta (or another appropriate reference)
+3.  **Step 3: Execute the Full Pipeline**
+    - From the root directory of the repository, run Snakemake. This will execute the entire workflow for all samples defined in your manifests.
+    - **Command**:
+      ```bash
+      # Run the entire pipeline for all samples using 8 cores
+      snakemake --cores 8 --use-conda --reason
+      ```
 
-### Reference genome location
-- The canonical E. coli K-12 MG1655 reference used for verification is stored at:
- resources/reference/ecoli_k12_mg1655.fasta
+4.  **Step 4: Running on a Specific Sample or Target**
+    - You can also run the pipeline for a single sample or up to a specific step by specifying the target output file.
+    - **Example**: To generate the final polished assembly for only `SMP001`:
+      ```bash
+      snakemake --cores 8 --use-conda results/polish/SMP001/final_assembly.fasta
+      ```
 
-## Compliance and good recording (GLP/GDP hints)
-- Record who/when/where, instrument identifiers, SOP version, consumable lot numbers.
-- Track raw data paths and checksums; confirm backups.
-- Capture key QC: initial pore occupancy, early yield, read N50, mean Q/pass rate.
-- For clinical sources, link to pseudonymized patient IDs stored separately to meet UK GDPR/DPA.
-- Research demo with good documentation and traceability. For regulated use, operate within an accredited QMS and validate per ISO 13485/15189 (or local equivalents).
+### 8.4 Pipeline Stages and Key Tools
 
-## Quickstart
-```bash
-# 0) Clone repo and ensure mamba/conda is available
+- **Read QC**: **NanoPlot** is run on all ONT reads.
+- **Assembly**: **Flye** is the default assembler. This can be changed in `config.yaml`.
+- **Polishing**: A multi-step polishing process is applied:
+  - **Racon**: One round of short-read correction polishing.
+  - **Medaka**: One round of long-read polishing using a neural network model.
+- **Evaluation**: The final assembly is evaluated using:
+  - **QUAST**: To compare against a reference genome and assess assembly quality metrics (N50, number of contigs, etc.).
+  - **Minimap2/Samtools**: To map reads back to the assembly and calculate mean coverage depth.
+- **Annotation**: The final polished assembly is annotated using **Prokka**.
 
-# 1) Build config/samples.tsv (Schema B) from your run manifest(s) (Schema A+)
-python scripts/manifest_to_samples.py \
-  --manifests_glob "data/manifests/*.tsv" \
-  --out config/samples.tsv \
-  --default-platform ont
+### 8.5 Deliverables
 
-#    Optionally, you may create config/samples.tsv manually (tab-delimited; exact headers):
-#    sample_id  platform  read_path  biosample_accession  barcode
+After a successful run for a sample (e.g., `SMP001`), the key outputs will be located in the `results/` directory:
 
-# 2) If you have local FASTQs, set read_path for each sample to your .fastq(.gz).
-#    If you do not have local FASTQs but have BioSample accessions, leave read_path empty.
+- **Final Polished Assembly**: `results/polish/SMP001/final_assembly.fasta`
+- **Assembly Evaluation**: `results/evaluation/SMP001/quast/report.html`
+- **Coverage Report**: `results/evaluation/SMP001/depth.txt`
+- **Annotation**: `results/annotation/SMP001/prokka/SMP001.gff`
+- **Initial Read QC**: `results/qc/SMP001/nanoplot/NanoPlot-report.html`
 
-# 3) Test the fetch/resolve step (only affects samples with empty read_path)
-snakemake --use-conda --cores 4 -R resolve_samples -p
+## 9. Quality Control and Acceptance Criteria
 
-# 4) Run QC or full pipeline targets
-snakemake --use-conda --cores 8 -p
+- All pipeline steps are subject to QC checks. Specific, measurable thresholds for DNA quality, run performance, and assembly metrics are defined in **[QC_Acceptance_Criteria.md](QC_Acceptance_Criteria.md)**.
+- Any deviation from this SOP or failure to meet acceptance criteria must be documented. Use the **[Deviation_OOS_CAPA_Template.md](Deviation_OOS_CAPA_Template.md)** to record the issue, investigation, and corrective actions.
 
-# Notes:
-# - resolve_samples writes an updated table to config/samples.tsv (or the configured fetch.out)
-#   and only fetches from NCBI if read_path is empty and biosample_accession is set.
-# - Fetched reads are stored under data/raw/{sample_id}.fastq.gz.
-# - The fetch environment is defined in pipeline/envs/fetch.yaml (includes SRA Toolkit).
-```
+## 10. Documentation and Data Retention
 
-## Data availability
-- Protocols, manifests, and links to public archives only (PRJNA284866; SUB5380773).
-- Verified mapping provided for run 2019‑04‑01: `data/manifests/run_20190401.tsv`.
-- Raw reads/assemblies are not redistributed here, they are public at NCBI.
+- All run metadata must be captured in the run manifest.
+- Raw data and pipeline results must be backed up according to lab policy.
+- For details on data handling, refer to the project's **[Data_Handling_and_Information_Governance.md](Data_Handling_and_Information_Governance.md)**.
+- Publicly available data associated with this project is described in **[data_availability.md](data_availability.md)**.
 
-## Contributions and issues
-- PRs and issues welcome. Please avoid adding any PHI or non‑public sample mappings.
+## 11. Validation
+
+The pipeline's performance and functionality are verified and validated according to the plan outlined in **[Validation_and_Verification_Plan.md](Validation_and_Verification_Plan.md)**.
