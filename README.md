@@ -5,12 +5,12 @@
 - Public data linked via NCBI (PRJNA284866). Includes mock manifests for demo/testing. No patient‑identifiable data.
 
 ## Purpose
-- Reproducible de novo assembly pipeline for bacterial genomes using Oxford Nanopore reads, with QC, polishing, mapping‑based evaluation, and annotation.
+- Reproducible de novo assembly pipeline for bacterial genomes using Oxford Nanopore reads, (optional, illumina short reads), with QC, polishing, mapping‑based evaluation, and annotation.
 - For research and training only; not for diagnostic use.
 
-- Record each run in a single manifest: data/manifests/run_YYYYMMDD.tsv (Schema A+: Run Manifest & Metadata).
+- Record each run in a single manifest: data/manifests/run_YYYYMMDD.tsv (Schema A+: Run Manifest & Metadata). See the [run manifest guide](docs/run_manifest_README.md).
 - Generate the workflow table from the manifest(s): scripts/manifest_to_samples.py → config/samples.tsv (Schema B: Workflow Samples).
-- Optional: in cases we have NCBI accession IDs to the Biosamples/ SRA, but not the raw data, put the accessions in the config/samples.tsv, the workflow can fetch FASTQs from public with either biosample_accession or srrs (SRA accession) when read_path is empty.
+- Optional: In case we have NCBI accessions for the Biosamples/ SRA, but not the raw data, the workflow can fetch FASTQs with either biosample_accession or srrs (SRA accession) in config/samples.tsv when read_path is empty, utilizing fetch_or_prompt.py
 
 ## Features
 - Snakemake pipeline with conda‑locked envs (optional containers).
@@ -25,7 +25,7 @@
 ## Where the workflow starts
 
 - Entry point: pipeline/Snakefile (Snakemake loads this file).
-- Practical SOP position: after basecalling/demultiplexing (SOP §8.2). 
+- Practical SOP position: pipeline starts after basecalling/demultiplexing (SOP §8.2). 
 
 ## Metadata and Schemas
 
@@ -67,7 +67,7 @@ Important: `biosample_accession` is often not available before de novo assembly.
   - `barcode` (optional)
 - Behavior:
   - If `read_path` points to an existing `.fastq(.gz)`, the workflow uses it.
-  - If `read_path` is empty and `biosample_accession` is present, the `resolve_samples` rule can fetch reads from NCBI SRA into `data/raw/{sample_id}.fastq.gz` and write `config/samples.resolved.tsv`.
+  - If `read_path` is empty and `biosample_accession` is present, the `resolve_samples` rule can fetch reads from NCBI SRA into `data/raw/{platform}.{sample_id}.fastq.gz` and write `config/samples.resolved.tsv`.
   - If both `read_path` and `biosample_accession` are empty, fetching is skipped for that sample.
 
 ### From Schema A+ to Schema B
