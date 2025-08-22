@@ -1,2 +1,1 @@
-data/manifests/run_20190401.tsv: MISSING CRITICAL fields: run_id, run_date, operator, instrument_type, device_id, flowcell_id, kit_code, extraction_method, dna_concentration_ng_per_uL
-data/manifests/run_20190401.tsv: missing recommended fields: minknow_version, dorado_or_guppy_version, dorado_or_guppy_model, basecalling_mode, flowcell_chemistry, flowcell_part, barcoding_kit, source_type, sizing_method, fragment_size_N50_kb, raw_data_path, fastq_output_path, demux_output_path, backup_paths, checksum_manifest_path
+Manifest validation skipped: no DOC_TEMPLATE configured or file not found.

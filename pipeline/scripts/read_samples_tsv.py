@@ -1,32 +1,51 @@
 #!/usr/bin/env python3
+# File: scripts/read_samples_tsv.py
 import csv, sys, json
-from pathlib import Path
+
+REQUIRED = {"sample_id","platform"}
 
 def main(tsv_path):
     samples = []
-    p = Path(tsv_path)
-    if not p.exists():
-        print(json.dumps({'error': f'not found: {p}'}))
-        return
-    with p.open('r', newline='') as fh:
+    with open(tsv_path, 'r', newline='') as fh:
         reader = csv.DictReader(fh, delimiter='\t')
-        required = {'sample_id','platform','read_path'}
         headers = [h.strip() for h in (reader.fieldnames or [])]
-        missing = required - set(headers)
+        missing = REQUIRED - set(headers)
         if missing:
             print(json.dumps({'error': f'missing columns: {sorted(missing)}'}))
-            return
+            sys.exit(0)
+
+        has_rpath = "read_path" in headers
+        has_r1 = "read_path_r1" in headers
+        has_r2 = "read_path_r2" in headers
+
         for row in reader:
             sample = (row.get('sample_id') or '').strip()
             plat = (row.get('platform') or '').strip().lower()
-            rpath = (row.get('read_path') or '').strip()
             if not sample:
                 continue
-            samples.append({'sample_id': sample, 'platform': plat, 'read_path': rpath})
+
+            out = {'sample_id': sample, 'platform': plat}
+
+            if has_rpath:
+                rpath = (row.get('read_path') or '').strip()
+                if rpath:
+                    out['read_path'] = rpath
+
+            if has_r1:
+                r1 = (row.get('read_path_r1') or '').strip()
+                if r1:
+                    out['read_path_r1'] = r1
+            if has_r2:
+                r2 = (row.get('read_path_r2') or '').strip()
+                if r2:
+                    out['read_path_r2'] = r2
+
+            samples.append(out)
+
     print(json.dumps({'samples': samples}))
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
         print(json.dumps({'error': 'usage: read_samples_tsv.py <samples.tsv>'}))
-    else:
-        main(sys.argv[1])
+        sys.exit(0)
+    main(sys.argv[1])

@@ -1,6 +1,10 @@
-channels: [bioconda, conda-forge, defaults]
+name: ont-polish
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
 dependencies:
-  - medaka=1.11.3
-  - nanopolish=0.14.0
-  - hdf5
-  - bcftools=1.18
+  - python =3.11
+  - racon
+  - minimap2
+  

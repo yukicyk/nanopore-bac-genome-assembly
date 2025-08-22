@@ -1,13 +1,10 @@
 name: ont-qc
-channels: [conda-forge, bioconda, defaults]
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
 dependencies:
-  - python=3.11
-  - nanoplot=1.42.0
-  - nanofilt=2.8.0
-  - pigzname: ont-qc
-channels: [conda-forge, bioconda, defaults]
-dependencies:
-  - python=3.11
-  - nanoplot=1.42.0
-  - nanofilt=2.8.0
+  - python >=3.10,<3.12
+  - nanoplot
   - pigz
+  - gzip  # provided by the OS but harmless

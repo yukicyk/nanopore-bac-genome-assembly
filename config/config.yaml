@@ -2,21 +2,14 @@
 fetch:
 enable: true # enable calling the fetch script
 non_interactive: true # set true for CI
-threads: 4
+#threads: 4
 
-# Commentd out to run test samples stored in data/raw/
+# Commented out to run test samples stored in data/raw/
 # samples: config/samples.tsv
 # out: config/samples.resolved.tsv
 # script: scripts/fetch_or_prompt.py
 
-assembler: flye        # options: flye, canu
-polisher: medaka       # options: medaka, nanopolish, both
-threads: 4
-mode: mock
-reference: null        # optional path to reference fasta for evaluation
-min_coverage: 30
-reports:
-  enable: true
+doc_template: docs/template/run_manifest_template.tsv
 
 samples:
   testONT:
@@ -25,3 +18,43 @@ samples:
 reference_path: resources/references/ecoli_k12_mg1655.fasta
 fetch:
   enable: false
+
+# Minimal config for ONT bacterial WGS pipeline
+sample: "Ecoli30x"
+
+# Input reads (from previous workflow)
+reads:
+  Ecoli30x: "data/raw/test_small.fastq.gz"
+
+# Reference for QC (QUAST); path exists per your repo
+reference: "resources/reference/ecoli_k12_mg1655.fasta"
+
+# Genome size hint for Flye (adjust if needed)
+genome_size: "4.6m"
+
+# Filtering switch and parameters
+filtering:
+  enabled: true
+  min_length: 1000
+  keep_percent: 95
+
+# Medaka model (pick the closest for your chemistry/basecalling)
+# Examples: r104_e81_sup_g615, r104_e81_hac_g615, r103_sup_g507 (if available)
+medaka_model: "r104_e81_sup_g615"
+
+# Annotation options
+annotation:
+  use_bakta: true
+  use_prokka: false
+  bakta_db: "~/.cache/bakta/db"  # run `bakta_db download --output ~/.cache/bakta/db` once
+  prokka_prefix: "{sample}"
+
+# Threads defaults (can be overridden per rule)
+threads:
+  filtlong: 4
+  flye: 8
+  minimap2: 8
+  racon: 8
+  medaka: 8
+  quast: 4
+  annotate: 8

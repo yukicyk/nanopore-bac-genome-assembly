@@ -128,7 +128,7 @@ Choose kit; follow the official ONT protocol current to your chemistry.
 
 8. Bioinformatics workflow
 
-8.1 Basecalling and demultiplexing
+8.0 Basecalling and demultiplexing
 
 - Use Dorado (preferred) or Guppy with appropriate model for your chemistry:
    - Dorado example:
@@ -136,6 +136,17 @@ Choose kit; follow the official ONT protocol current to your chemistry.
      dorado demux --kit <RBK/NBD kit> out.bam -o demux/
 - Alternatively, run Guppy with the correct config for R9/R10 and kit.
 - Record versions and models in metadata.
+
+8.1 Data tables and configuration (implementation notes)
+
+- After demultiplexing, maintain config/samples.tsv (Schema B). Run resolve_samples to produce config/samples.resolved.tsv, which QC steps consume as the authoritative per-sample table.
+- Assembly and polishing steps read key parameters from config.yaml:
+
+    - sample: active sample ID
+    - reads: optional path override if not using the resolved table
+    - reference: path for evaluation/mapping (default below)
+      - Default verification reference (E. coli K‑12 MG1655):
+    - resources/reference/ecoli_k12_mg1655.fasta
 
 8.2 Read QC
 

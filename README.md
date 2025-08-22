@@ -10,15 +10,15 @@
 
 - Record each run in a single manifest: data/manifests/run_YYYYMMDD.tsv (Schema A+: Run Manifest & Metadata).
 - Generate the workflow table from the manifest(s): scripts/manifest_to_samples.py → config/samples.tsv (Schema B: Workflow Samples).
-- Optional: in cases we have NCBI accession IDs to the Biosamples/ SRA, but not the raw data, put the accessions in the config/samples.tsv, the workflow can fetch FASTQs from public when biosample_accession or srrs (SRA accession) is present and read_path is empty.
+- Optional: in cases we have NCBI accession IDs to the Biosamples/ SRA, but not the raw data, put the accessions in the config/samples.tsv, the workflow can fetch FASTQs from public with either biosample_accession or srrs (SRA accession) when read_path is empty.
 
 ## Features
 - Snakemake pipeline with conda‑locked envs (optional containers).
-- Assemblers: Flye or Canu.
-- Polishing: Medaka and/or Nanopolish.
+- Assemblers: Flye.
+- Polishing: Racon, Medaka and/or Nanopolish.
 - Read mapping: minimap2 (ONT) and BWA‑MEM (Illumina).
 - QC: QUAST; optional CheckM.
-- Annotation: Prokka.
+- Annotation: Bakta and/or Prokka.
 - Documentation pack: SOP, QC acceptance criteria, deviation/OOS template, validation plan.
 - CI: dry‑run on tiny test data.
 
@@ -126,6 +126,21 @@ VALIDATE_STRICT=true snakemake --use-conda -p validate_manifests
 
 ## Outputs
 - Outputs: `assembled.fasta`, `polished.fasta`, mapping BAMs, QC metrics, annotations, summary report.
+
+## Configuration and file locations (clarifications)
+
+  ### Manifest-based QC input table
+    - QC steps that derive from the run manifest operate on config/samples.resolved.tsv (Schema B after resolve_samples). This file is generated/updated by the resolve_samples step and is the source of truth for per-sample read paths during QC.
+
+  ### Assembly configuration
+    - Assembly targets use entries from config.yaml to determine the active sample, input reads override (optional), and the reference for evaluation. Ensure config.yaml contains:
+    - sample: <sample_id>
+    - reads: <path to FASTQ if overriding samples table> (optional)
+    - reference: resources/reference/ecoli_k12_mg1655.fasta (or another appropriate reference)
+
+  ### Reference genome location
+    - The canonical E. coli K-12 MG1655 reference used for verification is stored at:
+      resources/reference/ecoli_k12_mg1655.fasta
 
 ## Compliance and good recording (GLP/GDP hints)
 - Record who/when/where, instrument identifiers, SOP version, consumable lot numbers.
