@@ -1,55 +1,67 @@
+# ===================================================================
+# ||         CONFIGURATION FOR BACTERIAL ASSEMBLY PIPELINE         ||
+# ===================================================================
+# This file controls the behavior of the entire Snakemake workflow.
+# Edit the values below to match your project's needs.
 
-fetch:
-enable: true # enable calling the fetch script
-non_interactive: true # set true for CI
-#threads: 4
+# -------------------------------------------------------------------
+# 1. INPUT DATA CONFIGURATION
+# -------------------------------------------------------------------
+# The pipeline discovers samples from a TSV (Tab-Separated Values) file.
+# This is the most scalable way to manage one or hundreds of samples.
+samples_sheet: "config/samples.tsv"
 
-# Commented out to run test samples stored in data/raw/
-# samples: config/samples.tsv
-# out: config/samples.resolved.tsv
-# script: scripts/fetch_or_prompt.py
 
-doc_template: docs/template/run_manifest_template.tsv
+# -------------------------------------------------------------------
+# 2. RESOURCE AND REFERENCE PATHS
+# -------------------------------------------------------------------
+# Central location for all external reference files and databases.
 
-samples:
-  testONT:
-    read_path: data/raw/test_small.fastq.gz
+resources:
+  # Path to the reference genome for evaluation with QUAST.
+  reference_genome: "resources/references/ecoli_k12_mg1655.fasta"
 
-reference_path: resources/references/ecoli_k12_mg1655.fasta
-fetch:
-  enable: false
+  # Path where the Bakta database will be stored.
+  # The pipeline will automatically download it to this location if it's not found.
+  # You do NOT need to run `bakta_db download` yourself.
+  bakta_db: "resources/bakta_db"
 
-# Minimal config for ONT bacterial WGS pipeline
-sample: "Ecoli30x"
 
-# Input reads (from previous workflow)
-reads:
-  Ecoli30x: "data/raw/test_small.fastq.gz"
+# -------------------------------------------------------------------
+# 3. TOOL-SPECIFIC PARAMETERS
+# -------------------------------------------------------------------
+# Fine-tune the parameters for each major step in the pipeline.
 
-# Reference for QC (QUAST); path exists per your repo
-reference: "resources/reference/ecoli_k12_mg1655.fasta"
-
-# Genome size hint for Flye (adjust if needed)
-genome_size: "4.6m"
-
-# Filtering switch and parameters
 filtering:
+  # If true, reads will be filtered by length and quality.
   enabled: true
   min_length: 1000
+  # Discard the worst 5% of reads, keeping the best 95%.
   keep_percent: 95
 
-# Medaka model (pick the closest for your chemistry/basecalling)
-# Examples: r104_e81_sup_g615, r104_e81_hac_g615, r103_sup_g507 (if available)
-medaka_model: "r104_e81_sup_g615"
+assembly:
+  # Estimated genome size for the assembler (e.g., "4.6m", "2.8k").
+  # This is a crucial parameter for Flye.
+  genome_size: "4.6m"
 
-# Annotation options
+polishing:
+  # Medaka model to use for polishing. This must match your basecaller and flowcell.
+  # Find available models with `medaka model list`.
+  # Common examples: r1041_e82_400bps_sup_g615, r941_min_high_g360
+  medaka_model: "r1041_e82_400bps_sup_g615"
+
 annotation:
-  use_bakta: true
-  use_prokka: false
-  bakta_db: "~/.cache/bakta/db"  # run `bakta_db download --output ~/.cache/bakta/db` once
-  prokka_prefix: "{sample}"
+  # Choose the annotation tool. Options: "prokka" or "bakta".
+  # The pipeline will run the selected tool.
+  tool: "bakta"
 
-# Threads defaults (can be overridden per rule)
+
+# -------------------------------------------------------------------
+# 4. GLOBAL THREAD & RESOURCE DEFAULTS
+# -------------------------------------------------------------------
+# Default number of threads to use for each program.
+# These can be overridden for specific rules in the Snakefile if needed.
+
 threads:
   filtlong: 4
   flye: 8
@@ -57,4 +69,5 @@ threads:
   racon: 8
   medaka: 8
   quast: 4
-  annotate: 8
+  prokka: 8
+  bakta: 8

@@ -1,0 +1,10 @@
+name: ont-flye
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python =3.11
+  - flye
+  - minimap2
+  - samtools =1.20

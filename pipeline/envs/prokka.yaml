@@ -1,0 +1,7 @@
+name: ont-prokka
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - prokka

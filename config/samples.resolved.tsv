@@ -1,0 +1,2 @@
+sample_id	platform	biosample	srrs	read_path	read_path_r1	read_path_r2	barcode	resolved_srrs	note
+Ecoli30x	ont			/Users/yuki/Projects/nano-new/data/raw/test_small.fastq.gz					kept existing read_path

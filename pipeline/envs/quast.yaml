@@ -1,0 +1,10 @@
+name: ont-quast
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python =3.11
+  - quast
+  - minimap2
+  - samtools =1.20

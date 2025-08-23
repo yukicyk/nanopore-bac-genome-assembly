@@ -1,2 +1,2 @@
-sample_id	platform	biosample	srrs	read_path	read_path_r1	read_path_r2	barcode
+sample_id	platform	biosample	srrs	read_path	illumina_r1	illumina_r2	barcode
 Ecoli30x	ont			/Users/yuki/Projects/nano-new/data/raw/test_small.fastq.gz			

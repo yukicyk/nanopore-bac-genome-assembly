@@ -1,41 +1,72 @@
-#
-# pipeline/rules/qc.smk
-# Handles initial read quality control for all samples.
-#
+# ===================================================================
+# ||         RULES FOR ILLUMINA SHORT-READ QC (FASTQC)             ||
+# ===================================================================
+# This module runs FastQC on paired-end Illumina reads and then
+# aggregates the results into a single MultiQC report.
 
-rule nanoplot_qc:
-    input:
-        # This rule should only run for ONT samples.
-        reads=lambda wc: SAMPLES_DF.loc[wc.sample, "read_path"] if SAMPLES_DF.loc[wc.sample, "platform"] == "ont" else []
-    output:
-        report=touch("results/qc/{sample}/nanoplot/NanoPlot-report.html")
-    params:
-        outdir="results/qc/{sample}/nanoplot"
-    threads: config.get("threads", {}).get("nanoplot", 4)
-    conda: "envs/ont-qc.yaml"
-    shell:
-        """
-        # Only run if input is not empty
-        if [ -z "{input.reads}" ]; then exit 0; fi
-        NanoPlot --fastq {input.reads} --outdir {params.outdir} --threads {threads}
-        """
+# Identify which samples have Illumina data defined in the sample sheet.
+# This assumes your samples_df has 'illumina_r1' and 'illumina_r2' columns.
+# It filters out rows where the Illumina paths are empty or not defined.
+SAMPLES_WITH_ILLUMINA = samples_df[
+    samples_df["illumina_r1"].notna() & (samples_df["illumina_r1"] != "")
+].index.tolist()
 
-# Placeholder for Illumina QC - we can implement this fully in the next phase.
+
 rule fastqc:
+    """
+    Run FastQC on paired-end Illumina reads for each sample that has them.
+    """
     input:
-        r1=lambda wc: SAMPLES_DF.loc[wc.sample, "read_path_r1"] if SAMPLES_DF.loc[wc.sample, "platform"] == "illumina" else [],
-        r2=lambda wc: SAMPLES_DF.loc[wc.sample, "read_path_r2"] if SAMPLES_DF.loc[wc.sample, "platform"] == "illumina" else []
+        r1=lambda wildcards: samples_df.loc[wildcards.sample, "illumina_r1"],
+        r2=lambda wildcards: samples_df.loc[wildcards.sample, "illumina_r2"]
     output:
-        touch("results/qc/{sample}/fastqc/fastqc.ok")
+        # FastQC creates both an HTML file and a ZIP archive.
+        html_r1="results/{sample}/qc/fastqc/{sample}_R1_fastqc.html",
+        zip_r1="results/{sample}/qc/fastqc/{sample}_R1_fastqc.zip",
+        html_r2="results/{sample}/qc/fastqc/{sample}_R2_fastqc.html",
+        zip_r2="results/{sample}/qc/fastqc/{sample}_R2_fastqc.zip",
     params:
-        outdir="results/qc/{sample}/fastqc"
+        # Specify an output directory for clarity.
+        outdir="results/{sample}/qc/fastqc"
     threads: 2
-    conda: "envs/qc.yaml" # Assumes a qc.yaml with fastqc
+    conda:
+        "../envs/fastqc.yaml"
+    log:
+        "logs/fastqc/{sample}.log"
     shell:
         """
-        # Only run if input is not empty
-        if [ -z "{input.r1}" ]; then exit 0; fi
+        # Ensure the output directory exists before running
         mkdir -p {params.outdir}
-        # fastqc {input.r1} {input.r2} -o {params.outdir}
-        touch {output} # Placeholder command
+
+        fastqc \
+            --threads {threads} \
+            --outdir {params.outdir} \
+            {input.r1} {input.r2} > {log} 2>&1
+        """
+
+
+rule multiqc:
+    """
+    Aggregate all FastQC reports into a single, comprehensive MultiQC report.
+    """
+    input:
+        # Gather all the FastQC zip files from all samples that have Illumina reads.
+        expand(
+            "results/{sample}/qc/fastqc/{sample}_{read}_fastqc.zip",
+            sample=SAMPLES_WITH_ILLUMINA,
+            read=["R1", "R2"]
+        )
+    output:
+        "reports/multiqc_report.html"
+    conda:
+        "../envs/fastqc.yaml"
+    log:
+        "logs/multiqc.log"
+    shell:
+        """
+        multiqc \
+            --force \
+            --title "Short Read QC Report" \
+            --outdir reports \
+            . > {log} 2>&1
         """

@@ -1,0 +1,7 @@
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - bakta
+  # Bakta needs a database. We will add a rule to download it.

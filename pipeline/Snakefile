@@ -50,7 +50,19 @@ include: str(RULES_DIR / "assemble.smk")
 include: str(RULES_DIR / "polish.smk")
 include: str(RULES_DIR / "evaluation.smk")
 include: str(RULES_DIR / "annotation.smk")
-include: str(RULES_DIR / "report.smk")  # <-- ADD THIS LINE
+include: str(RULES_DIR / "report.smk")
+include: str(RULES_DIR / "bakta.smk") 
+include: str(RULES_DIR / "nanoplot.smk")  # <-- ADD THIS LINE
+
+# --- Conditionally define the final annotation output ---
+if config["annotation_tool"] == "bakta":
+    final_annotation_output = expand("results/{sample}/annotation/bakta", sample=SAMPLES)
+elif config["annotation_tool"] == "prokka":
+    final_annotation_output = expand("results/{sample}/annotation/prokka/{sample}.gff", sample=SAMPLES)
+else:
+    # If the user enters something invalid, stop and give an error
+    raise ValueError(f"Invalid annotation_tool in config.yaml: {config['annotation_tool']}. Choose 'prokka' or 'bakta'.")
+# ---
 
 # ===================================================================
 # Final Target Rule (`all`)
@@ -62,9 +74,12 @@ rule all:
         
         # Final Summary Report (depends on everything else)
         "reports/assembly_summary_report.md", # <-- ADD THIS LINE
-
+        # The final annotation files, determined by our logic above
+        final_annotation_output,
+        "reports/multiqc_report.html",
         # Individual sample deliverables (can be removed if the summary is sufficient,
         # but it's good practice to keep them for explicit dependency tracking)
         expand("results/polish/{sample}/final_assembly.fasta", sample=SAMPLES),
         expand("results/evaluation/{sample}/quast/report.tsv", sample=SAMPLES),
+        expand("results/{sample}/qc/nanoplot", sample=SAMPLES),
         expand("results/annotation/{sample}/prokka/{sample}.gff", sample=SAMPLES) if USE_PROKKA else [],
