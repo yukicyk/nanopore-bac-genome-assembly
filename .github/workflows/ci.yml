@@ -35,9 +35,16 @@ jobs:
           mamba-version: "*"
           channels: conda-forge,bioconda,defaults
           channel-priority: strict
-          activate-environment: snakemake_env
-          environment-file: pipeline/envs/snakemake.yaml
           use-mamba: true
+     # Step 2.3: Create the environment from the file (if not cached)
+     # This step ONLY runs if the cache was not found in Step 1.
+     # We use an explicit 'mamba env create' command, which is unambiguous and reliable.
+      - name: Create Mamba environment
+        if: steps.cache-env.outputs.cache-hit != 'true'
+        run: |
+          mamba env create --name snakemake_env --file pipeline/envs/snakemake.yaml
+
+
 
       # Step 3: Run the Snakemake dry-run test
       # This is the core of our CI. It checks if the workflow DAG can be built.
