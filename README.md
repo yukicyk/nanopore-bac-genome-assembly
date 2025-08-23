@@ -23,14 +23,14 @@ This workflow is designed with best practices for clinical and research environm
 
 The pipeline automates the following steps, from raw reads to an annotated assembly and final report:
 
-```
-graph TD;
-    A[Input: Run Manifests] --> B{"Read QC\n(NanoPlot)"};
-    B --> C{"Assembly\n(Flye)"};
-    C --> D{"Polishing\n(Racon + Medaka)"};
+```mermaid
+flowchart TD
+   A[Input: Run Manifests] --> |Nanoplot| B{"Read QC"};
+    B --> |Flye| C{"Assembly"};
+    C --> |Racon + Medaka| D{"Polishing"};
     D --> E[Final Polished Assembly];
-    E --> F{"Evaluation\n(QUAST + Depth)"};
-    E --> G{"Annotation\n(Prokka)"};
+    E --> |QUAST + Depth| F{"Evaluation"};
+    E --> |Bakta or Prokka| G{"Annotation"};
     F & G --> H[Output: Summary Report];
 ```
 
