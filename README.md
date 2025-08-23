@@ -23,14 +23,16 @@ This workflow is designed with best practices for clinical and research environm
 
 The pipeline automates the following steps, from raw reads to an annotated assembly and final report:
 
+```mermaid
 graph TD
-    A[Input: Run Manifests] --> B{Read QC <br/>(NanoPlot)}
-    B --> C{Assembly <br/>(Flye)}
-    C --> D{Polishing <br/>(Racon + Medaka)}
-    D --> E[Final Polished Assembly]
-    E --> F{Evaluation <br/>(QUAST + Depth)}
-    E --> G{Annotation <br/>(Prokka)}
-    F & G --> H[Output: Summary Report]
+    A[Input: Run Manifests] --> B{Read QC <br/>(NanoPlot)};
+    B --> C{Assembly <br/>(Flye)};
+    C --> D{Polishing <br/>(Racon + Medaka)};
+    D --> E[Final Polished Assembly];
+    E --> F{Evaluation <br/>(QUAST + Depth)};
+    E --> G{Annotation <br/>(Prokka)};
+    F & G --> H[Output: Summary Report];
+```
 
 ## Quick Start Guide
 1. Prerequisites
@@ -49,7 +51,6 @@ cd YOUR_REPOSITORY
 mamba env create -f pipeline/envs/snakemake.yaml
 conda activate snakemake_env
 ```
-(Note: We need to create a snakemake.yaml environment file. See the box below.)
 
 3. Configuration
  1. Add Run Manifests: Place your experimental metadata files (in .tsv format) into the data/manifests/ directory. You can use data/manifests/run_manifest_template.tsv as a starting point. The pipeline will automatically find and process all samples listed in these files.
