@@ -51,7 +51,7 @@ jobs:
         shell: bash -l {0} # Important: ensures the conda env is active
         run: |
           # Use mamba run to execute the command inside the correct environment
-          mamba run -n snakemake_env snakemake --use-conda --dry-run --cores 1
+          mamba run -n snakemake_env snakemake --snakefile pipeline/Snakefile --use-conda --dry-run --cores 1
 
       # Step 4 (Optional but recommended): Lint the Snakefile for style and errors
       - name: Lint Snakefile
