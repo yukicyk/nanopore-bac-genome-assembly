@@ -1,214 +1,152 @@
-
 # Standard Operating Procedure (SOP) for Oxford Nanopore Bacterial Whole-Genome Sequencing (WGS)
 
-**Version**: 1.0
-**Effective date**: YYYY-MM-DD
+**Version**: 1.1
+**Effective date**: 2025-08-22
 **Author**: Dr. Yuki Chan / Lab
 **Approved by**: PI / QA
 **Applies to**: Bacterial isolates (pure culture)
-**Scope**: End-to-end workflow from culture to sequencing and data processing FASTQ/assemblies/annotation for ONT instruments (e.g., MinION/GridION/PromethION), optional hybrid assembly with illumina shortreads.
+**Scope**: End-to-end workflow from culture to sequencing and data processing for ONT instruments, resulting in high-quality assemblies and associated reports.
 
-1. Purpose
+## 1. Purpose
 
-  To describe standardized procedures for extracting high-molecular-weight (HMW) DNA from bacterial isolates, preparing Oxford Nanopore sequencing libraries, running ONT flow cells, and performing basecalling, QC, and downstream analysis to generate high-quality assemblies and associated reports.
+To describe standardized procedures for extracting high-molecular-weight (HMW) DNA from bacterial isolates, preparing Oxford Nanopore sequencing libraries, running ONT flow cells, and performing a reproducible bioinformatics analysis to generate high-quality genome assemblies.
 
-2. Responsibilities
+## 2. Responsibilities
 
- - Operator: Performs wet-lab procedures, instrument setup, and initial QC.
- - Bioinformatics lead: Runs basecalling and analysis, reviews QC, archives data.
- - QA/PI: Reviews and approves results, deviations, and SOP updates.
+- **Operator**: Performs wet-lab procedures, instrument setup, and initial QC.
+- **Bioinformatics lead**: Manages and executes the bioinformatics pipeline, reviews QC, and archives data.
+- **QA/PI**: Reviews and approves results, deviations, and SOP updates.
 
-3. Safety
+## 3. Safety
 
-- Follow institutional biosafety procedures (BSL-2 for most pathogens).
-- Wear PPE: lab coat, gloves, eye protection.
-- Handle phenol/ethanol/NaOH/bleach per SDS, in fume hood where applicable.
-- Decontaminate work surfaces and dispose of biological waste properly.
+- Follow institutional biosafety procedures. For detailed hazards, see the project's **[Risk_Assessment_and_Biosafety.md](Risk_Assessment_and_Biosafety.md)**.
+- Wear appropriate PPE: lab coat, gloves, eye protection.
+- Handle all chemicals according to their Safety Data Sheet (SDS).
 
-4. Definitions and abbreviations
+## 4. Definitions and Abbreviations
 
-- ONT: Oxford Nanopore Technologies
-- WGS: Whole-genome sequencing
-- HMW DNA: High-molecular-weight DNA
-- QC: Quality control
-- Q-score: Phred-equivalent quality score
-- R9.4.1/R10.4.1: Common ONT flow cell chemistries
-- Kit codes: e.g., SQK-LSK114 (ligation), SQK-RBK114 (rapid barcoding)
+- **ONT**: Oxford Nanopore Technologies
+- **WGS**: Whole-genome sequencing
+- **HMW**: High-molecular-weight
+- **SOP**: Standard Operating Procedure
+- **OOS/OOT**: Out of Specification / Out of Trend.
+- **CAPA**: Corrective and Preventive Action.
 
-5. Materials and equipment
-- Instruments: ONT MinION/GridION/PromethION; compatible computer with GPU (optional) and ≥2 TB storage for projects
-- Flow cells: R9.4.1 or R10.4.1 (FLO-MIN106D, FLO-MIN114, FLO-PRO114, etc.)
-- Library kits: Choose one
-   * Ligation: SQK-LSK114 (+ barcoding EXP-NBD114 if multiplexing)
-   * Rapid barcoding: SQK-RBK114
-- DNA extraction reagents: HMW DNA kit (e.g., Qiagen Genomic-tip 100/G) or phenol-free HMW protocol; RNase A; optional bead cleanup (AMPure XP or ONT Short Fragment Buffer)
-- Quantification and sizing: Qubit dsDNA HS kit, Nanodrop (optional), TapeStation/Fragment Analyzer (optional pulsed-field gel)
-- Consumables: Low-bind tubes, wide-bore tips, magnetic rack, nuclease-free water
-- Software:
-  * ONT: MinKNOW, Guppy or Dorado (basecalling), ONT Cloud/Local workflows as needed
-  * QC: NanoPlot, pycoQC, FastQC (optional)
-  * Assembly: Flye, Raven, Canu (optional), Medaka/PEPPER-Polish, Racon
-  * Annotation and typing: Prokka/Bakta, mlst, abricate, AMRFinderPlus
-  * Contamination/Completeness: CheckM, BUSCO (bacteria), Kraken2/Bracken
-  * Other: Porechop/porechop_abi (adapter trimming if necessary), filtlong (read filtering)
+## 5. Materials and Equipment
 
-6. Sample requirements
+- **Instruments**: ONT MinION/GridION/PromethION; compatible computer with GPU and ≥2 TB storage.
+- **Flow cells**: R9.4.1 or R10.4.1 (e.g., FLO-MIN114).
+- **Library kits**: Ligation (e.g., SQK-LSK114) or Rapid Barcoding (e.g., SQK-RBK114).
+- **DNA extraction**: HMW DNA kit (e.g., Qiagen Genomic-tip 100/G).
+- **Quantification**: Qubit dsDNA HS kit.
+- **Software**: MinKNOW, Dorado/Guppy, and the `nanopore-bac-genome-assembly` Snakemake pipeline.
 
-- Input: Pure, single-colony bacterial culture grown on appropriate medium.
-- Purity: Confirm by streaking and colony morphology; optional 16S PCR if needed.
-- DNA input requirements (typical for ligation kits):
-  * Concentration: ≥20–50 ng/µL
-  * Total mass per barcode: 400–1000 ng (see kit manual)
-  * A260/280: 1.8–2.0; A260/230: ≥2.0
-  * Fragment size: Majority >20 kb preferred; avoid shearing.
-- Storage: DNA at 4°C short-term (≤72 h) or −20°C/−80°C long-term.
+## 6. Sample Requirements
 
-7. Procedure
+- **Input**: Pure, single-colony bacterial culture.
+- **Purity**: Confirmed by streaking. For detailed purity methods, see the run manifest template.
+- **DNA Input (Ligation)**:
+  - Concentration: ≥20–50 ng/µL
+  - Total mass: 400–1000 ng
+  - A260/280: 1.8–2.0; A260/230: ≥2.0
+  - Fragment size: Majority >20 kb.
+- **Acceptance Criteria**: For specific thresholds, refer to **[QC_Acceptance_Criteria.md](QC_Acceptance_Criteria.md)**.
 
- 7.1 Culture and cell harvest
+## 7. Procedure
 
-- Streak isolate, incubate to obtain fresh overnight culture.
-- Harvest 1–5 mL cells (species-dependent). Avoid overgrowth to limit DNA degradation.
-- Pellet at 5,000–8,000 × g for 5–10 min; remove supernatant.
+(Sections 7.1 - 7.7 remain largely the same, covering Culture, DNA Extraction, QC, Library Prep, and Sequencing Run)
 
- 7.2 DNA extraction (HMW)
+- **Documentation**: For every run, create a new run manifest file based on **[run_manifest_template.tsv](../data/manifests/run_manifest_template.tsv)**. Record all wet-lab and instrument parameters as specified in **[run_manifest_README.md](run_manifest_README.md)**.
 
-- Use a validated HMW DNA protocol (e.g., Qiagen Genomic-tip) minimizing pipetting shear.
-- Include RNase A treatment.
-- Perform gentle mixing (invert, flick); avoid vortexing post-lysis.
-- Purify DNA; elute in 10 mM Tris-HCl pH 8.5 or nuclease-free water.
-- Optional: Additional cleanup using 0.45×–0.8× bead ratio to remove small fragments.
+## 8. Bioinformatics Workflow
 
- 7.3 DNA QC and normalization
+This section details the use of the `nanopore-bac-genome-assembly` Snakemake pipeline.
 
-- Quantify with Qubit dsDNA HS (preferred). Record concentration.
-- Check purity on Nanodrop; if A260/230 <1.8, perform cleanup.
-- Assess fragment size distribution (optional) with TapeStation/FA or PFGE.
-- Normalize DNA to kit-specific input: see Section 6.
+### 8.1 Basecalling and Demultiplexing
 
- 7.4 Library preparation
+- After the run, perform basecalling and demultiplexing using the latest recommended version of **Dorado** or **Guppy**.
+- **Example (Dorado)**:
+  ```bash
+  # Basecall raw POD5 files
+  dorado basecaller sup <model> <input_pod5_dir> > basecalls.bam
 
-Choose kit; follow the official ONT protocol current to your chemistry.
+  # Demultiplex using the BAM output
+  dorado demux --kit-name <KIT_NAME> --output-dir demux/ basecalls.bam
+  ```
+- Record the basecaller version and model used in the run manifest.
 
-   A) Ligation kit (SQK-LSK114)
+### 8.2 Pipeline Setup and Configuration
 
-  - DNA repair/end-prep according to kit.
-  - Adapter ligation with AMX; incubate as specified.
-  - Clean-up with beads; elute in EB.
-  - For multiplexing: Perform native barcoding (EXP-NBD114) before adapter ligation.
-  - Handle gently; use wide-bore tips.
-   B) Rapid barcoding kit (SQK-RBK114)
+The pipeline uses two main types of configuration:
 
-  - Mix DNA with RB reagent; incubate per protocol.
-  - Pool barcoded samples; add sequencing adapters per kit.
+1.  **Run Manifests (Schema A+)**:
+    - These are your primary experimental records. Before running the pipeline, ensure you have created or updated a manifest file in `data/manifests/` for your run.
+    - This file contains detailed metadata about the run and samples. For guidance, see **[run_manifest_README.md](run_manifest_README.md)**.
 
-7.5 Flow cell QC and priming
+2.  **Pipeline Configuration (`config/config.yaml`)**:
+    - This file controls the *parameters* and *behavior* of the pipeline (e.g., thread counts, tool choices, filtering settings).
+    - It does **not** define which samples to run. The pipeline automatically discovers all samples from the manifests.
 
-- Check flow cell pore count in MinKNOW; accept ≥800 active pores for MinION (lab threshold; adjust for R10).
-- Prime flow cell per chemistry instructions (Flush Buffer/Flush Tether).
-- Load library at recommended concentration/volume. Record sample sheet.
+### 8.3 Running the Pipeline
 
-7.6 Sequencing run
+The workflow is executed using a single `snakemake` command.
 
-- Configure run in MinKNOW:
-  * Flow cell type, kit chemistry, barcodes used.
-  * Output: write raw POD5/BLOW5 or FAST5 and enable “output FASTQ” if using live basecalling.
-  * Set run time (e.g., 24–72 h) or yield target.
-- Optional live basecalling with Dorado/Guppy (SUP/ HAC models per use case).
-- Monitor:
-  * Pore occupancy (>70% ideal in first hour)
-  * Yield and read length N50
-  * Quality (mean Q, pass rate)
-- If pore occupancy falls quickly, consider nuclease flush and reload if protocol allows.
+1.  **Step 1: Convert Manifests to a Sample Sheet**
+    - The pipeline will automatically perform this step. It reads all manifests in `data/manifests/` and generates the primary pipeline input file: `config/samples.tsv` (Schema B). This is handled by the `build_samples_from_manifests` rule.
 
-7.7 Post-run handling
+2.  **Step 2: (Optional) Fetch Public Data**
+    - If any sample in `config/samples.tsv` is missing a local read path but has a `biosample_accession`, the `resolve_samples` rule will attempt to download the data from NCBI SRA.
+    - This generates the final, authoritative sample sheet: `config/samples.resolved.tsv`.
 
-- Stop run; perform final wash/nuclease flush if reusing flow cell (per ONT guidance).
-- Back up run data (raw signals + FASTQ + logs) to lab storage.
+3.  **Step 3: Execute the Full Pipeline**
+    - From the root directory of the repository, run Snakemake. This will execute the entire workflow for all samples defined in your manifests.
+    - **Command**:
+      ```bash
+      # Run the entire pipeline for all samples using 8 cores
+      snakemake --cores 8 --use-conda --reason
+      ```
 
-8. Bioinformatics workflow
+4.  **Step 4: Running on a Specific Sample or Target**
+    - You can also run the pipeline for a single sample or up to a specific step by specifying the target output file.
+    - **Example**: To generate the final polished assembly for only `SMP001`:
+      ```bash
+      snakemake --cores 8 --use-conda results/polish/SMP001/final_assembly.fasta
+      ```
 
-8.0 Basecalling and demultiplexing
+### 8.4 Pipeline Stages and Key Tools
 
-- Use Dorado (preferred) or Guppy with appropriate model for your chemistry:
-   - Dorado example:
-     dorado basecaller sup <model> <input_pod5> > out.bam
-     dorado demux --kit <RBK/NBD kit> out.bam -o demux/
-- Alternatively, run Guppy with the correct config for R9/R10 and kit.
-- Record versions and models in metadata.
+- **Read QC**: **NanoPlot** is run on all ONT reads.
+- **Assembly**: **Flye** is the default assembler. This can be changed in `config.yaml`.
+- **Polishing**: A multi-step polishing process is applied:
+  - **Racon**: One round of short-read correction polishing.
+  - **Medaka**: One round of long-read polishing using a neural network model.
+- **Evaluation**: The final assembly is evaluated using:
+  - **QUAST**: To compare against a reference genome and assess assembly quality metrics (N50, number of contigs, etc.).
+  - **Minimap2/Samtools**: To map reads back to the assembly and calculate mean coverage depth.
+- **Annotation**: The final polished assembly is annotated using **Prokka**.
 
-8.1 Data tables and configuration (implementation notes)
+### 8.5 Deliverables
 
-- After demultiplexing, maintain config/samples.tsv (Schema B). Run resolve_samples to produce config/samples.resolved.tsv, which QC steps consume as the authoritative per-sample table.
-- Assembly and polishing steps read key parameters from config.yaml:
+After a successful run for a sample (e.g., `SMP001`), the key outputs will be located in the `results/` directory:
 
-    - sample: active sample ID
-    - reads: optional path override if not using the resolved table
-    - reference: path for evaluation/mapping (default below)
-      - Default verification reference (E. coli K‑12 MG1655):
-    - resources/reference/ecoli_k12_mg1655.fasta
+- **Final Polished Assembly**: `results/polish/SMP001/final_assembly.fasta`
+- **Assembly Evaluation**: `results/evaluation/SMP001/quast/report.html`
+- **Coverage Report**: `results/evaluation/SMP001/depth.txt`
+- **Annotation**: `results/annotation/SMP001/prokka/SMP001.gff`
+- **Initial Read QC**: `results/qc/SMP001/nanoplot/NanoPlot-report.html`
 
-8.2 Read QC
+## 9. Quality Control and Acceptance Criteria
 
-- NanoPlot on FASTQ (per barcode):
-   - NanoPlot --fastq reads.fastq.gz -o nanoplot/
-- Optional adapter trimming with porechop_abi if adapters persist.
-- Remove very short/low-quality reads if required:
-   - filtlong --min_length 1000 --keep_percent 95 input.fastq.gz > filtered.fastq
+- All pipeline steps are subject to QC checks. Specific, measurable thresholds for DNA quality, run performance, and assembly metrics are defined in **[QC_Acceptance_Criteria.md](QC_Acceptance_Criteria.md)**.
+- Any deviation from this SOP or failure to meet acceptance criteria must be documented. Use the **[Deviation_OOS_CAPA_Template.md](Deviation_OOS_CAPA_Template.md)** to record the issue, investigation, and corrective actions.
 
-8.3 Assembly
+## 10. Documentation and Data Retention
 
-- Long-read first-pass assembler (choose one, Flye recommended):
-   - flye --nano-raw filtered.fastq -g 5m -o flye_out --threads N
-- Polish:
-   - racon x2–3 iterations using raw reads (optional)
-   - medaka_consensus with model matching chemistry:
-   - medaka_consensus -i filtered.fastq -d flye_out/assembly.fasta -o medaka_out -m <r9.4.1_sup/r10_sup>
-- Circularization and rotation (optional): circlator or simple heuristics to detect circular contigs.
-- For hybrid (if Illumina available): Try Unicycler hybrid to improve small plasmids.
+- All run metadata must be captured in the run manifest.
+- Raw data and pipeline results must be backed up according to lab policy.
+- For details on data handling, refer to the project's **[Data_Handling_and_Information_Governance.md](Data_Handling_and_Information_Governance.md)**.
+- Publicly available data associated with this project is described in **[data_availability.md](data_availability.md)**.
 
-8.4 Contamination and QC checks
+## 11. Validation
 
-- Taxonomic check: kraken2 against RefSeq bacterial; report dominant species.
-- Completeness: CheckM or BUSCO (bacteria).
-- Coverage: map reads back with minimap2; compute depth (mosdepth).
-- AMR/virulence screening: abricate with relevant databases; AMRFinderPlus.
-- Multilocus sequence typing: mlst.
-
-8.5 Deliverables
-
-- Final assembly (FASTA)
-- Polishing consensus (FASTA) and logs
-- Per-sample FASTQ (raw and filtered)
-- QC reports (NanoPlot, coverage, contamination)
-- Metadata (sample IDs, barcodes, run conditions, software versions)
-
-9. Quality control and acceptance criteria
-
-- Apply thresholds in QC_Acceptance_Criteria.md (linked).
-- Document deviations and justifications.
-
-10. Documentation and data retention
-
-- Maintain lab notebook entries (run ID, flow cell ID, pore count, kit lot numbers).
-- Store raw data, intermediate files, and final outputs for ≥5 years or per policy.
-- Backups: two geographically separate locations if possible.
-
-11. Troubleshooting (selected)
-
-- Low pore occupancy:
-  - Check loading concentration; ensure no bubbles; verify priming steps.
-- Low Q-scores:
-  - DNA purity; gentle handling; correct basecalling model; avoid over-fragmentation.
-- Poor assembly continuity:
-  - Increase read N50 and coverage; consider ligation kit; perform additional polishing.
-
-12. References
-
-- ONT protocols (latest chemistry manuals)
-- Flye, Medaka, Dorado documentation
-- Community best practices for ONT bacterial assembly
-
-Appendix A: Example commands (pending)
-
-- See Section 8 for templates; adjust threads, genome size, and models.
+The pipeline's performance and functionality are verified and validated according to the plan outlined in **[Validation_and_Verification_Plan.md](Validation_and_Verification_Plan.md)**.
