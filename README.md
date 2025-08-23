@@ -23,16 +23,15 @@ This workflow is designed with best practices for clinical and research environm
 
 The pipeline automates the following steps, from raw reads to an annotated assembly and final report:
 
-```mermaid
 graph TD
-    A[Input: Run Manifests] --> B{Read QC <br/>(NanoPlot)};
-    B --> C{Assembly <br/>(Flye)};
-    C --> D{Polishing <br/>(Racon + Medaka)};
-    D --> E[Final Polished Assembly];
-    E --> F{Evaluation <br/>(QUAST + Depth)};
-    E --> G{Annotation <br/>(Prokka)};
-    F & G --> H[Output: Summary Report];
-```
+    A[Input: Run Manifests] --> B{Read QC <br/>(NanoPlot)}
+    B --> C{Assembly <br/>(Flye)}
+    C --> D{Polishing <br/>(Racon + Medaka)}
+    D --> E[Final Polished Assembly]
+    E --> F{Evaluation <br/>(QUAST + Depth)}
+    E --> G{Annotation <br/>(Prokka)}
+    F & G --> H[Output: Summary Report]
+
 ## Quick Start Guide
 1. Prerequisites
 Ensure you have Conda (or preferably Mamba) installed on your system.
