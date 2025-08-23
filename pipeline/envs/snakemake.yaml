@@ -1,7 +1,17 @@
+# Environment for the main Snakemake orchestrator.
 channels:
   - conda-forge
   - bioconda
   - defaults
 dependencies:
-  - bakta
-  # Bakta needs a database. We will add a rule to download it.
+  # Explicitly define a python version to aid the solver. This is very important.
+  - python=3.9
+
+  # Core pipeline tools
+  - snakemake-minimal>=7.8.0
+
+  # For reading the samples.tsv file
+  - pandas>=1.4
+
+  # For creating the final markdown report
+  - jinja2>=3.0
