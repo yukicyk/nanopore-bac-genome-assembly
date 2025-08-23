@@ -23,6 +23,7 @@ This workflow is designed with best practices for clinical and research environm
 
 The pipeline automates the following steps, from raw reads to an annotated assembly and final report:
 
+```
 graph TD;
     A[Input: Run Manifests] --> B{"Read QC\n(NanoPlot)"};
     B --> C{"Assembly\n(Flye)"};
@@ -31,7 +32,8 @@ graph TD;
     E --> F{"Evaluation\n(QUAST + Depth)"};
     E --> G{"Annotation\n(Prokka)"};
     F & G --> H[Output: Summary Report];
-    
+```
+
 ## Quick Start Guide
 1. Prerequisites
 Ensure you have Conda (or preferably Mamba) installed on your system.
