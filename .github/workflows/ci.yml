@@ -1,0 +1,46 @@
+# .github/workflows/ci.yml
+name: Snakemake CI
+
+# This workflow is triggered on pushes to the main branch and on pull requests
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-pipeline:
+    runs-on: ubuntu-latest # Use the latest Ubuntu runner
+    steps:
+      # Step 1: Check out the repository's code
+      - name: Check out repository
+        uses: actions/checkout@v3
+
+      # Step 2: Set up Mambaforge (a fast Conda installer)
+      - name: Set up Mambaforge
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          python-version: 3.9
+          mamba-version: "*"
+          channels: conda-forge,bioconda,defaults
+          channel-priority: strict
+          activate-environment: snakemake_env # Activate the base env
+          environment-file: pipeline/envs/snakemake.yaml # Install the base env
+          use-mamba: true # Use Mamba for speed
+
+      # Step 3: Run the Snakemake dry-run test
+      # This is the core of our CI. It checks if the workflow DAG can be built.
+      - name: Run Snakemake dry-run
+        shell: bash -l {0} # Important: ensures the conda env is active
+        run: |
+          # We need a dummy manifest for the dry-run to work
+          cp data/manifests/run_manifest_template.tsv data/manifests/ci_test_manifest.tsv
+          # Run the dry-run. --use-conda tells it to check conda env definitions.
+          snakemake --use-conda -n
+
+      # Step 4 (Optional but recommended): Lint the Snakefile for style and errors
+      - name: Lint Snakefile
+        shell: bash -l {0}
+        run: |
+          snakemake --lint
