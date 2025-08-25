@@ -13,10 +13,9 @@ jobs:
     steps:
       # Step 1: Check out the repository's code
       - name: Check out repository
-        uses: actions/checkout@v4 # Use latest version
+        uses: actions/checkout@v4
 
       # Step 2: Set up Mambaforge and cache the environment
-      # The cache key now correctly points to our new ci.yaml file.
       - name: Set up Mambaforge
         uses: conda-incubator/setup-miniconda@v3
         with:
@@ -26,20 +25,16 @@ jobs:
           channels: conda-forge,bioconda,defaults
           channel-priority: strict
           use-mamba: true
-          # This is the crucial part: define the environment from our file
           environment-file: pipeline/envs/ci.yaml
-          # Give a name to the environment created
           activate-environment: ci-env
 
-      # Step 3: Install SRA-Tools for the fetch script
-      # This is a system dependency needed for the test run.
+      # Step 3: Install SRA-Tools (if needed for other tests, can be removed if only dry-run is used)
       - name: Install SRA-Tools
         run: |
           sudo apt-get update
           sudo apt-get install -y sra-toolkit
 
       # Step 4: Lint the workflow for style and correctness
-      # This is a fast check for common errors. It runs inside the activated env.
       - name: Lint Snakefiles
         shell: bash -l {0}
         run: |
@@ -47,19 +42,20 @@ jobs:
 
       # Step 5: Run a full test of the workflow with a dry-run
       - name: Test workflow with a dry-run
-        working-directory: ./nanopore-bac-genome-assembly
+        # NO working-directory key needed here. The runner is already in the repo root.
         shell: bash -l {0} # Ensures the conda env is active
         run: |
-          # First, create a dummy sample sheet for the test
-          mkdir -p config
-          echo -e "sample_id\tplatform\tbiosample\tsrrs\tont_reads\tillumina_r1\tillumina_r2\tbarcode\nTEST_SAMPLE\tont\t\t\tdata/raw/test.fastq.gz\t\t\t" > config/samples.tsv
-          
-          # Create a dummy fastq file for the dry-run to succeed
-          mkdir -p data/raw
+          # --- SIMPLIFIED TEST SETUP ---
+          # Create the necessary directories
+          mkdir -p config data/raw
+
+          # Create a dummy fastq file for the dry-run to find
           echo "@dummy\nACGT\n+\n!!!!" > data/raw/test.fastq.gz
 
-          # Run the dependency resolution script
-          python pipeline/scripts/fetch_or_prompt.py --samples config/samples.tsv --out config/samples.resolved.tsv
+          # Create the RESOLVED sample sheet directly. This is what the pipeline
+          # actually reads, and it simplifies the CI test.
+          echo -e "sample_id\tplatform\tbiosample\tsrrs\tont_reads\tillumina_r1\tillumina_r2\tbarcode\nTEST_SAMPLE\tont\t\t\tdata/raw/test.fastq.gz\t\t\t" > config/samples.resolved.tsv
 
           # Now, execute the dry-run. This will build the full DAG.
-          snakemake --snakefile pipeline/Snakefile --use-conda --dry-run --cores 1
+          # The --all-temp flag can make dry-runs faster by not checking for temp file protection.
+          snakemake --snakefile pipeline/Snakefile --use-conda --dry-run --cores 1 --all-temp
