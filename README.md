@@ -4,7 +4,7 @@
 [![Snakemake](https://img.shields.io/badge/snakemake-≥7.0-brightgreen.svg)](https://snakemake.github.io)
 
 
-A robust, reproducible, and standards-aware Snakemake pipeline for assembling high-quality bacterial genomes from Oxford Nanopore (ONT) data.
+A robust, reproducible, and standards-aware Snakemake pipeline for assembling high-quality bacterial genomes from Oxford Nanopore (ONT) and (optional) Illumina data.
 
 This workflow is designed with best practices for clinical and research environments in mind, emphasizing traceability, quality control, and comprehensive documentation, inspired by GLP and ISO standards.
 
@@ -15,7 +15,7 @@ This workflow is designed with best practices for clinical and research environm
 - **Reproducible**: Uses Conda environments to ensure all tools are version-locked.
 - **Scalable**: Easily runs on one sample or hundreds by simply adding a manifest file.
 - **Modular**: The workflow is broken into logical, self-contained rule files.
-- **Quality-Focused**: Integrates multiple polishing and evaluation steps (Racon, Medaka, QUAST).
+- **Quality-Focused**: Integrates multiple polishing and evaluation steps (Medaka, pilon, QUAST).
 - **Automated Reporting**: Generates a final summary report with key QC metrics for all samples.
 - **Comprehensive Documentation**: Includes a full SOP, validation plans, and QC acceptance criteria.
 
@@ -24,14 +24,24 @@ This workflow is designed with best practices for clinical and research environm
 The pipeline automates the following steps, from raw reads to an annotated assembly and final report:
 
 ```mermaid
-flowchart TD
-   A[Input: Run Manifests] --> |Nanoplot| B{"Read QC"};
-    B --> |Flye| C{"Assembly"};
-    C --> |Racon + Medaka| D{"Polishing"};
-    D --> E[Final Polished Assembly];
-    E --> |QUAST + Depth| F{"Evaluation"};
-    E --> |Bakta or Prokka| G{"Annotation"};
-    F & G --> H[Output: Summary Report];
+   flowchart TD
+    subgraph "Phase 1: Input Preparation (Manual)"
+        direction LR
+        A["Input: Run Manifest"] --> |manifest_to_samples.py| B["samples.tsv"];
+        B -- "or create manually" --> C{Sample Sheet};
+        C --> |fetch_or_prompt.py| D["samples.resolved.tsv"];
+    end
+
+    subgraph "Phase 2: Automated Pipeline (Snakemake)"
+        D --> E["Raw Read QC <br> (NanoPlot / FastQC)"];
+        E --> F["Genome Assembly <br> (Flye / SPAdes)"];
+        F --> G["Assembly Polishing <br> (Medaka / Pilon)"];
+        G --> H{"Final High-Quality Assembly"};
+        H --> I["Evaluation (QUAST)"];
+        H --> J["Annotation (Bakta)"];
+        I & J --> K["Final Summary Report <br> (MultiQC)"];
+    end
+
 ```
 
 ## Quick Start Guide
@@ -62,10 +72,10 @@ Run the pipeline. Snakemake will automatically handle the creation of all other 
 
 ```bash
 # Perform a dry-run to see what tasks will be executed
-snakemake -n --use-conda
+snakemake -n --use-conda -s pipeline/Snakefile
 
 # Execute the full pipeline on all available cores
-snakemake --cores all --use-conda --reason
+snakemake --cores all --use-conda --reason -s pipeline/Snakefile
 ```
 Upon completion, the final results will be in the results/ directory, and a full summary can be found in reports/assembly_summary_report.md.
 
@@ -77,14 +87,10 @@ Upon completion, the final results will be in the results/ directory, and a full
 ├── data/           # Input manifests describing runs and samples
 ├── docs/           # Project documentation (SOP, QC criteria, etc.)
 ├── pipeline/       # The Snakemake workflow (Snakefile, rules, envs)
-├── results/        # All output files, organized by sample and step
-└── scripts/        # Helper scripts used by the pipeline.
-├── config/         # Pipeline configuration and generated sample sheets
-├── data/           # Input manifests describing runs and samples
-├── docs/           # Project documentation (SOP, QC criteria, etc.)
-├── pipeline/       # The Snakemake workflow (Snakefile, rules, envs)
-├── results/        # All output files, organized by sample and step
-└── scripts/        # Helper scripts used by the pipeline
+|  └── scripts/        # Helper scripts used by the pipeline.
+├── resources/      # The reference data or test dataset
+└── results/        # All output files, organized by sample and step
+
 
 ```
 

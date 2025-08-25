@@ -53,17 +53,22 @@ def get_final_annotation(wildcards):
 # --- 3. AGGREGATION: DEFINE ALL FINAL DELIVERABLES ---
 rule all:
     input:
-        # 1. Request the final assembly for every sample.
-        expand(get_final_assemblies, sample=SAMPLES),
-        # 2. UPDATED: Request the final annotation for every sample using the new helper.
-        expand(get_final_annotation, sample=SAMPLES),
-        # 3. Request the final evaluation for every sample.
+        # Updated to use lambda functions to generate the dynamic file lists.
+        # Snakemake executes these functions to get the list of inputs.
+
+        # 1. Get all final assemblies by calling our helper for each sample.
+        lambda wc: [get_final_assemblies(type('Wildcards', (), {'sample': s})()) for s in SAMPLES],
+
+        # 2. Get all final annotations by calling our helper for each sample.
+        lambda wc: [get_final_annotation(type('Wildcards', (), {'sample': s})()) for s in SAMPLES],
+
+        # 3. For static paths, expand still works perfectly.
         expand("results/{sample}/evaluation/quast/report.html", sample=SAMPLES),
-        # 4. Request a single, aggregated report for the whole project.
+
+        # 4. Include single files directly.
         "results/multiqc_report.html"
     message:
         "Pipeline finished successfully. All requested outputs have been generated."
-
 
 # --- 4. MODULARIZATION: INCLUDE RULE FILES ---
 include: "rules/qc.smk"

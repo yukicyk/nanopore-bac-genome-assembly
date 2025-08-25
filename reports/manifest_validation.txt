@@ -1,1 +1,0 @@
-Manifest validation skipped: no DOC_TEMPLATE configured or file not found.
