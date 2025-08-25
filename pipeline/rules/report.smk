@@ -1,18 +1,27 @@
-#
-# pipeline/rules/report.smk
-# Generates a final summary report for all samples.
-#
+# ================================================================= #
+#                         RULE: REPORTING                           #
+# ================================================================= #
+# This rule aggregates all QC results into a single MultiQC report.
 
-rule generate_summary_report:
+rule multiqc:
     input:
-        # Gather all the required reports from every sample in the run
-        quast_reports=expand("results/evaluation/{sample}/quast/report.tsv", sample=SAMPLES),
-        depth_reports=expand("results/evaluation/{sample}/depth.txt", sample=SAMPLES),
-        # Conditionally include GFF files only if annotation is enabled
-        gff_files=expand("results/annotation/{sample}/prokka/{sample}.gff", sample=SAMPLES) if USE_PROKKA else []
+        # Dynamically gather all possible QC outputs from all samples.
+        expand(
+            [
+                "results/{sample}/qc/nanoplot/NanoPlot-report.html",
+                "results/{sample}/qc/fastqc/",
+                "results/{sample}/evaluation/quast/"
+            ],
+            sample=SAMPLES
+        )
     output:
-        "reports/assembly_summary_report.md"
+        "results/multiqc_report.html"
+    log:
+        "logs/multiqc.log"
     conda:
-        "envs/report.yaml"
-    script:
-        "../scripts/assembly_qc_summary.py"
+        "../envs/report.yaml"
+    params:
+        # Give the report a nice title.
+        title="Bacterial WGS Pipeline Summary"
+    shell:
+        "multiqc . --filename {output} --title \"{params.title}\" --force &> {log}"

@@ -23,14 +23,14 @@
 - dorado_or_guppy_version: Basecaller version (e.g., Dorado 0.6.1).
 - dorado_or_guppy_model: Model (e.g., dna_r10.4.1_e8.2_260bps_sup).
 - basecalling_mode: cfg_live (live) | offline (post-run).
-- flowcell_id: Manufacturer ID (e.g., FAF12345).
+- flowcell_id: Manufacturer ID (e.g., AAC758) The flowcell ID is case sensitive with no spaces in the format ([A-Z] x 3 [0-9] x 3). 
 - flowcell_chemistry (Required): R9.4.1 | R10.4.1 etc.
-- flowcell_ID: Internal inventory/asset ID (if different).
+- flowcell_name: Internal inventory/asset ID (if different from maunfacturer ID e.g., FAF12345).
 - kit_code (Required): Library kit code (e.g., SQK-LSK114).
 - barcoding_kit: e.g., EXP-NBD114 or SQK-RBK114 if multiplexing.
 
 ### Sample and biology
-- sample_id (Required): For singleplex, the sample run on this flow cell. For multiplexed runs, this may be the pool name; use per-sample sheet for details.
+- **sample_id (Required):** For singleplex, the sample run on this flow cell. For multiplexed runs, this may be the pool name; use per-sample sheet for details.
 - organism: NCBI taxon name.
 - strain_or_isolate: Lab strain or isolate code.
 - source_type (Required): lab_culture | environmental | clinical | synthetic_control.
@@ -41,11 +41,6 @@
 - purity_check: yes | no.
 - purity_method: e.g., 16S PCR + Sanger, selective plating.
 
-### Ethics and identifiers
-- linked_clinical_record_id: Pseudonymous ID linking to a secure system. No PHI/PII in this file.
-- biosample_accession: Public archive BioSample (e.g., SAMN…).
-- bioproject_accession: Public project (e.g., PRJNA…).
-- sra_run_accessions: SRR IDs post-submission (comma-separated).
 
 ### Wet lab and input DNA
 - extraction_method (Required): Kit/protocol and version (e.g., Monarch HMW DNA Extraction Kit for Tissue).
@@ -60,7 +55,7 @@
 ### Library and barcodes
 - library_protocol_notes: Deviations from kit protocol.
 - barcoded: yes | no.
-- barcode_id: If barcoded=yes, index used (e.g., NB01, RB01).
+- **barcode:** If barcoded=yes, index used (e.g., NB01, RB01).
 - pool_included: yes | no; if yes, link to pool/sample sheet.
 
 ### Run performance
@@ -70,6 +65,12 @@
 - run_end_time: Actual end time (ISO 8601).
 - notes: Free-text observations.
 
+### Ethics and identifiers
+- linked_clinical_record_id: Pseudonymous ID linking to a secure system. No PHI/PII in this file.
+- **biosample:** Public archive BioSample (e.g., SAMN…).
+- **bioproject:** Public project (e.g., PRJNA…).
+- **srrs:** SRA accessions post-submission (comma-separated).SRA accession codes are unique identifiers for biological data within the Sequence Read Archive (SRA), a public database of next-generation sequencing data. These codes categorize data into four hierarchical levels: STUDY (e.g., SRP#), SAMPLE (e.g., SRS#), EXPERIMENT (e.g., SRX#), and RUN (e.g., SRR#). The specific prefix depends on the originating database (SRA, EBI, or DDBJ), SRR# should be provided in the manifest record or directly in the samples.tsv to download the actual sequence data from the SRA database for test-run
+
 ### Data locations and integrity
 - raw_data_path (Required): Path to raw signal (POD5/FAST5) and MinKNOW logs.
 - fastq_output_path: Basecalled FASTQ location.
@@ -77,13 +78,14 @@
 - backup_paths: Off-machine copies (NAS/object store).
 - checksum_manifest_path: MD5/SHA256 list for integrity verification.
 - submission_date: Date submitted to archives.
-- platform (Required): ont.
-- read_path: If this manifest drives pipelines, the singleplex FASTQ; for multiplex, leave blank here and use per-sample sheet.
-- reference_path: Reference FASTA for reference-guided workflows.
+- **platform** (Required): ont (ont, illumina or hybrid)
+- **ont_reads:** If this manifest drives pipelines, the path to the basecalled, demultiplexed fastq location.
+- **illumina_r1:** (Optional) If there are illumina short reads for the sample, the path to the R1 reads.
+- **illumina_r2:** (Optional) If there are illumina short reads for the sample, the path to the R2 reads.
 
 ## Controlled vocabularies and formatting
 - instrument_type: MinION | GridION | PromethION
-- platform: ont
+- platform: ont (default) | hybrid | illumina (illumina metadata are not recorded in this manifest template) 
 - source_type: lab_culture | environmental | clinical | synthetic_control
 - isolate_origin: environmental | clinical
 - barcoded: yes | no
@@ -91,12 +93,16 @@
 - Dates/times: YYYY-MM-DD; or YYYY-MM-DDThh:mmZ
 - Use dot as decimal separator; keep units out of values (units documented here).
 
-## Minimal required fields (suggested)
+## Minimal suggested fields for record
 - run_id, run_date, instrument_type, flowcell_chemistry, kit_code, platform
 - dna_concentration_ng_per_uL, dna_total_ng_loaded, volume_loaded_uL
 - barcoded, basecalling_mode, minknow_version, dorado_or_guppy_version, dorado_or_guppy_model
 - raw_data_path, fastq_output_path, backup_paths
 - pore_occupancy_initial_pct (if available)
+
+## Minimal required fields for the pipeline to actually works
+- **"sample_id", "platform", "ont_reads":** column headers in exact words
+- "illumina_r1", "illumina_r2","biosample", "srrs", "barcode": optional column headers, these could be input manually in the samples.tsv, especially when raw data is not available, leaving those path blank, and providing biosample, or preferrable SRR# accessions will activate helper script to initiate downloading of the raw data.
 
 ## QC checkpoints aligned to CDC/APHL Bioinformatics QC guidance
 - Pre-assembly QC: Record NanoQC/NanoFilt settings and summaries (for ONT).

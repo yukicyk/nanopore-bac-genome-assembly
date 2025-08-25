@@ -1,72 +1,107 @@
-# ===================================================================
-# ||         RULES FOR ILLUMINA SHORT-READ QC (FASTQC)             ||
-# ===================================================================
-# This module runs FastQC on paired-end Illumina reads and then
-# aggregates the results into a single MultiQC report.
+# ================================================================= #
+#                         RULE: READ QC                             #
+# ================================================================= #
+# These rules perform initial quality control on the raw reads.
+# - NanoPlot is run on ONT reads.
+# - FastQC is run on Illumina reads.
 
-# Identify which samples have Illumina data defined in the sample sheet.
-# This assumes your samples_df has 'illumina_r1' and 'illumina_r2' columns.
-# It filters out rows where the Illumina paths are empty or not defined.
-SAMPLES_WITH_ILLUMINA = samples_df[
-    samples_df["illumina_r1"].notna() & (samples_df["illumina_r1"] != "")
-].index.tolist()
+# --- Helper function to get Illumina reads for a sample ---
+def get_illumina_reads(wildcards):
+    """Returns a list of Illumina read paths for a sample if they exist."""
+    reads = []
+    sample_info = SAMPLES_DF.loc[wildcards.sample]
+    if pd.notna(sample_info.get("illumina_r1")) and sample_info.get("illumina_r1"):
+        reads.append(sample_info["illumina_r1"])
+    if pd.notna(sample_info.get("illumina_r2")) and sample_info.get("illumina_r2"):
+        reads.append(sample_info["illumina_r2"])
+    return reads
 
+rule nanoplot:
+    input:
+        # This rule only runs if the sample has ONT reads.
+        reads=lambda wc: SAMPLES_DF.loc[wc.sample, "ont_reads"]
+    output:
+        report=report("results/{sample}/qc/nanoplot/NanoPlot-report.html",
+                      caption="../report/nanoplot.rst", category="QC")
+    params:
+        outdir="results/{sample}/qc/nanoplot"
+    log:
+        "logs/qc/nanoplot/{sample}.log"
+    threads: 4
+    conda:
+        "../envs/nanoplot.yaml"
+    shell:
+        "NanoPlot --fastq {input.reads} --outdir {params.outdir} "
+        "--threads {threads} &> {log}"
 
 rule fastqc:
-    """
-    Run FastQC on paired-end Illumina reads for each sample that has them.
-    """
     input:
-        r1=lambda wildcards: samples_df.loc[wildcards.sample, "illumina_r1"],
-        r2=lambda wildcards: samples_df.loc[wildcards.sample, "illumina_r2"]
+        # This rule only runs if the sample has Illumina reads.
+        reads=get_illumina_reads
     output:
-        # FastQC creates both an HTML file and a ZIP archive.
-        html_r1="results/{sample}/qc/fastqc/{sample}_R1_fastqc.html",
-        zip_r1="results/{sample}/qc/fastqc/{sample}_R1_fastqc.zip",
-        html_r2="results/{sample}/qc/fastqc/{sample}_R2_fastqc.html",
-        zip_r2="results/{sample}/qc/fastqc/{sample}_R2_fastqc.zip",
+        # FastQC creates one report per input file.
+        html=expand("results/{{sample}}/qc/fastqc/{read_pair}_fastqc.html",
+                    read_pair=["R1", "R2"])
     params:
-        # Specify an output directory for clarity.
         outdir="results/{sample}/qc/fastqc"
+    log:
+        "logs/qc/fastqc/{sample}.log"
     threads: 2
     conda:
         "../envs/fastqc.yaml"
-    log:
-        "logs/fastqc/{sample}.log"
     shell:
-        """
-        # Ensure the output directory exists before running
-        mkdir -p {params.outdir}
+        "fastqc --outdir {params.outdir} --threads {threads} {input.reads} &> {log}"
 
-        fastqc \
-            --threads {threads} \
-            --outdir {params.outdir} \
-            {input.r1} {input.r2} > {log} 2>&1
-        """
+# ================================================================= #
+#                         RULE: READ QC                             #
+# ================================================================= #
+# These rules perform initial quality control on the raw reads.
+# - NanoPlot is run on ONT reads.
+# - FastQC is run on Illumina reads.
 
+# --- Helper function to get Illumina reads for a sample ---
+def get_illumina_reads(wildcards):
+    """Returns a list of Illumina read paths for a sample if they exist."""
+    reads = []
+    sample_info = SAMPLES_DF.loc[wildcards.sample]
+    if pd.notna(sample_info.get("illumina_r1")) and sample_info.get("illumina_r1"):
+        reads.append(sample_info["illumina_r1"])
+    if pd.notna(sample_info.get("illumina_r2")) and sample_info.get("illumina_r2"):
+        reads.append(sample_info["illumina_r2"])
+    return reads
 
-rule multiqc:
-    """
-    Aggregate all FastQC reports into a single, comprehensive MultiQC report.
-    """
+rule nanoplot:
     input:
-        # Gather all the FastQC zip files from all samples that have Illumina reads.
-        expand(
-            "results/{sample}/qc/fastqc/{sample}_{read}_fastqc.zip",
-            sample=SAMPLES_WITH_ILLUMINA,
-            read=["R1", "R2"]
-        )
+        # This rule only runs if the sample has ONT reads.
+        reads=lambda wc: SAMPLES_DF.loc[wc.sample, "ont_reads"]
     output:
-        "reports/multiqc_report.html"
+        report=report("results/{sample}/qc/nanoplot/NanoPlot-report.html",
+                      caption="../report/nanoplot.rst", category="QC")
+    params:
+        outdir="results/{sample}/qc/nanoplot"
+    log:
+        "logs/qc/nanoplot/{sample}.log"
+    threads: 4
+    conda:
+        "../envs/nanoplot.yaml"
+    shell:
+        "NanoPlot --fastq {input.reads} --outdir {params.outdir} "
+        "--threads {threads} &> {log}"
+
+rule fastqc:
+    input:
+        # This rule only runs if the sample has Illumina reads, support paired-end reads only.
+        reads=get_illumina_reads
+    output:
+        # FastQC creates one report per input file.
+        html=expand("results/{{sample}}/qc/fastqc/{read_pair}_fastqc.html",
+                    read_pair=["R1", "R2"])
+    params:
+        outdir="results/{sample}/qc/fastqc"
+    log:
+        "logs/qc/fastqc/{sample}.log"
+    threads: 2
     conda:
         "../envs/fastqc.yaml"
-    log:
-        "logs/multiqc.log"
     shell:
-        """
-        multiqc \
-            --force \
-            --title "Short Read QC Report" \
-            --outdir reports \
-            . > {log} 2>&1
-        """
+        "fastqc --outdir {params.outdir} --threads {threads} {input.reads} &> {log}"

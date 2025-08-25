@@ -1,20 +1,46 @@
-#
-# pipeline/rules/annotation.smk
-# Handles genome annotation.
-#
+# ================================================================= #
+#                       RULE: ANNOTATION                            #
+# ================================================================= #
+# This file contains rules for genome annotation. The user can choose
+# between Bakta or Prokka in the config.yaml file.
 
-rule annotate_prokka:
+rule bakta:
     input:
-        asm="results/polish/{sample}/final_assembly.fasta"
+        assembly=get_final_assemblies
     output:
-        gff="results/annotation/{sample}/prokka/{sample}.gff"
-    threads: config.get("threads", {}).get("annotate", 8)
-    conda: "envs/annotate_prokka.yaml"
+        # This path must match the output of get_final_annotation for 'bakta'
+        gbff="results/{sample}/annotation/bakta/{sample}.gbff"
     params:
-        outdir="results/annotation/{sample}/prokka",
-        prefix="{sample}"
+        outdir="results/{sample}/annotation/bakta",
+        prefix="{sample}",
+        db=config["bakta"]["db_path"]
+    log:
+        "logs/annotation/bakta/{sample}.log"
+    threads: 16
+    conda:
+        "../envs/bakta.yaml"
     shell:
-        "prokka --outdir {params.outdir} --prefix {params.prefix} --cpus {threads} {input.asm}"
+        "bakta --db {params.db} {input.assembly} "
+        "--output {params.outdir} --prefix {params.prefix} "
+        "--threads {threads} --force &> {log}"
 
-# Add Bakta rule similarly if needed
-# rule annotate_bakta: ...
+
+rule prokka:
+    input:
+        assembly=get_final_assemblies
+    output:
+        # This path must match the output of get_final_annotation for 'prokka'
+        gff="results/{sample}/annotation/prokka/{sample}.gff"
+    params:
+        outdir="results/{sample}/annotation/prokka",
+        prefix="{sample}",
+        kingdom=config["prokka"]["kingdom"]
+    log:
+        "logs/annotation/prokka/{sample}.log"
+    threads: 8
+    conda:
+        "../envs/prokka.yaml" 
+    shell:
+        "prokka --outdir {params.outdir} --prefix {params.prefix} "
+        "--kingdom {params.kingdom} --cpus {threads} "
+        "--force {input.assembly} &> {log}"

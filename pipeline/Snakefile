@@ -1,85 +1,74 @@
-# ===================================================================
-# Nanopore Bacterial Genome Assembly Pipeline - Main Snakefile
-# ===================================================================
-
-from pathlib import Path
+# ================================================================= #
+#               NANOPORE BACTERIAL GENOME PIPELINE                  #
+#                      MASTER SNAKEFILE (v2.1)                      #
+# ================================================================= #
 import pandas as pd
 
-# --- 1. Configuration and Path Setup ---
-PIPELINE_DIR = Path(workflow.basedir).resolve()
-REPO = PIPELINE_DIR.parent
-CFG_DIR = REPO / "config"
-RULES_DIR = PIPELINE_DIR / "rules"
-configfile: str(CFG_DIR / "config.yaml")
+# --- 1. CONFIGURATION ---
+configfile: "config/config.yaml"
 
-# --- 2. Define Input Sample Sheets ---
-SAMPLES_TSV_IN = (REPO / config.get("samples_in", "config/samples.tsv")).resolve()
-SAMPLES_TSV_OUT = (REPO / config.get("samples_resolved", "config/samples.resolved.tsv")).resolve()
+try:
+    SAMPLES_DF = pd.read_csv(config["resolved_sample_sheet"], sep="\t").set_index("sample_id", drop=False)
+except FileNotFoundError:
+    raise SystemExit(f"ERROR: The resolved sample sheet '{config['resolved_sample_sheet']}' was not found. "
+                     "Please run your 'fetch_or_prompt.py' script first.")
 
-# --- 3. Load and Validate Samples ---
-def load_samples_df(path):
-    if not Path(path).exists(): return pd.DataFrame()
-    df = pd.read_csv(path, sep="\t", dtype=str).fillna("")
-    if "sample_id" not in df.columns or df.sample_id.isnull().any():
-        raise ValueError("`sample_id` column is missing or contains empty values.")
-    return df.set_index("sample_id", drop=False)
-
-SAMPLES_DF = load_samples_df(SAMPLES_TSV_OUT)
-SAMPLES = SAMPLES_DF.index.tolist()
-
-# --- 4. Global Helper Functions & Parameters ---
-def get_reads(wildcards, is_filtered=True):
-    sample_id = wildcards.sample
-    if config.get("filtering", {}).get("enabled", False) and is_filtered:
-        return f"results/filtered/{sample_id}.fastq.gz"
-    platform = SAMPLES_DF.loc[sample_id, "platform"]
-    return SAMPLES_DF.loc[sample_id, "read_path"] if platform == "ont" else SAMPLES_DF.loc[sample_id, "read_path_r1"]
-
-REF = config.get("reference", "resources/reference/ecoli_k12_mg1655.fasta")
-USE_PROKKA = bool(config.get("annotation", {}).get("use_prokka", True))
-USE_BAKTA = bool(config.get("annotation", {}).get("use_bakta", False))
+SAMPLES = list(SAMPLES_DF.index)
 
 
-# ===================================================================
-# Include Rule Modules
-# ===================================================================
+# --- 2. LOGIC: DETERMINE FINAL OUTPUTS PER SAMPLE ---
 
-include: str(RULES_DIR / "validate_manifest.smk")
-include: str(RULES_DIR / "qc.smk")
-include: str(RULES_DIR / "assemble.smk")
-include: str(RULES_DIR / "polish.smk")
-include: str(RULES_DIR / "evaluation.smk")
-include: str(RULES_DIR / "annotation.smk")
-include: str(RULES_DIR / "report.smk")
-include: str(RULES_DIR / "bakta.smk") 
-include: str(RULES_DIR / "nanoplot.smk")  # <-- ADD THIS LINE
+def get_final_assemblies(wildcards):
+    """
+    Inspects the sample sheet for a given sample and returns the path
+    to its expected final assembly file.
+    """
+    sample_info = SAMPLES_DF.loc[wildcards.sample]
+    has_ont = pd.notna(sample_info.get("ont_reads")) and sample_info.get("ont_reads")
+    has_illumina = pd.notna(sample_info.get("illumina_r1")) and sample_info.get("illumina_r1")
 
-# --- Conditionally define the final annotation output ---
-if config["annotation_tool"] == "bakta":
-    final_annotation_output = expand("results/{sample}/annotation/bakta", sample=SAMPLES)
-elif config["annotation_tool"] == "prokka":
-    final_annotation_output = expand("results/{sample}/annotation/prokka/{sample}.gff", sample=SAMPLES)
-else:
-    # If the user enters something invalid, stop and give an error
-    raise ValueError(f"Invalid annotation_tool in config.yaml: {config['annotation_tool']}. Choose 'prokka' or 'bakta'.")
-# ---
+    if has_ont and has_illumina:
+        return f"results/{wildcards.sample}/polish/pilon/assembly.fasta"
+    elif has_ont:
+        return f"results/{wildcards.sample}/polish/medaka/consensus.fasta"
+    elif has_illumina:
+        return f"results/{wildcards.sample}/assembly/spades/scaffolds.fasta"
+    else:
+        return []
 
-# ===================================================================
-# Final Target Rule (`all`)
-# ===================================================================
+# --- NEW HELPER FUNCTION ---
+def get_final_annotation(wildcards):
+    """
+    Inspects the config and returns the path to the expected final
+    annotation file based on the chosen annotator.
+    """
+    # Default to 'bakta' if the option is missing in the config
+    annotator = config.get("annotator", "bakta").lower()
+    if annotator == "prokka":
+        return f"results/{wildcards.sample}/annotation/prokka/{wildcards.sample}.gff"
+    else: # Default to bakta
+        return f"results/{wildcards.sample}/annotation/bakta/{wildcards.sample}.gbff"
+
+
+# --- 3. AGGREGATION: DEFINE ALL FINAL DELIVERABLES ---
 rule all:
     input:
-        # Manifest validation report
-        "reports/manifest_validation.txt",
-        
-        # Final Summary Report (depends on everything else)
-        "reports/assembly_summary_report.md", # <-- ADD THIS LINE
-        # The final annotation files, determined by our logic above
-        final_annotation_output,
-        "reports/multiqc_report.html",
-        # Individual sample deliverables (can be removed if the summary is sufficient,
-        # but it's good practice to keep them for explicit dependency tracking)
-        expand("results/polish/{sample}/final_assembly.fasta", sample=SAMPLES),
-        expand("results/evaluation/{sample}/quast/report.tsv", sample=SAMPLES),
-        expand("results/{sample}/qc/nanoplot", sample=SAMPLES),
-        expand("results/annotation/{sample}/prokka/{sample}.gff", sample=SAMPLES) if USE_PROKKA else [],
+        # 1. Request the final assembly for every sample.
+        expand(get_final_assemblies, sample=SAMPLES),
+        # 2. UPDATED: Request the final annotation for every sample using the new helper.
+        expand(get_final_annotation, sample=SAMPLES),
+        # 3. Request the final evaluation for every sample.
+        expand("results/{sample}/evaluation/quast/report.html", sample=SAMPLES),
+        # 4. Request a single, aggregated report for the whole project.
+        "results/multiqc_report.html"
+    message:
+        "Pipeline finished successfully. All requested outputs have been generated."
+
+
+# --- 4. MODULARIZATION: INCLUDE RULE FILES ---
+include: "rules/qc.smk"
+include: "rules/assembly.smk"
+include: "rules/polish.smk"
+include: "rules/evaluation.smk"
+include: "rules/annotation.smk"
+include: "rules/report.smk"

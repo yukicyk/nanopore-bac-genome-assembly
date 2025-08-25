@@ -1,56 +1,55 @@
-#
-# pipeline/rules/polish.smk
-# Handles assembly polishing.
-#
+# ================================================================= #
+#                         RULE: POLISHING                           #
+# ================================================================= #
+# These rules polish the draft assembly to improve base-level accuracy.
+# - Medaka uses ONT reads.
+# - Pilon uses Illumina reads for the final polish.
 
-# --- Racon Polishing ---
-rule map_for_racon_r1:
-    input:
-        asm="results/assembly/{sample}/assembly.fasta",
-        reads=get_reads
-    output:
-        temp("results/polish/{sample}/r1.paf.gz")
-    threads: config.get("threads", {}).get("minimap2", 8)
-    conda: "envs/polish.yaml"
-    shell: "minimap2 -x map-ont -t {threads} {input.asm} {input.reads} | gzip -c > {output}"
-
-rule racon_r1:
-    input:
-        draft="results/assembly/{sample}/assembly.fasta",
-        reads=get_reads,
-        paf="results/polish/{sample}/r1.paf.gz"
-    output:
-        "results/polish/{sample}/racon1.fasta"
-    threads: config.get("threads", {}).get("racon", 8)
-    conda: "envs/polish.yaml"
-    shell: "racon -t {threads} {input.reads} {input.paf} {input.draft} > {output}"
-
-# You can chain a second round of Racon similarly if needed.
-
-# --- Medaka Polishing ---
 rule medaka:
     input:
-        asm="results/polish/{sample}/racon1.fasta", # Input is Racon-polished assembly
-        reads=get_reads
+        # Takes the Flye assembly and the raw ONT reads.
+        assembly="results/{sample}/assembly/flye/assembly.fasta",
+        reads=lambda wc: SAMPLES_DF.loc[wc.sample, "ont_reads"]
     output:
-        directory("results/polish/{sample}/medaka")
-    threads: config.get("threads", {}).get("medaka", 8)
-    conda: "envs/medaka.yaml"
+        assembly="results/{sample}/polish/medaka/consensus.fasta"
     params:
-        model=config.get("medaka_model", "r104_e81_sup_g615")
+        outdir="results/{sample}/polish/medaka"
+    log:
+        "logs/polish/medaka/{sample}.log"
+    threads: 8
+    conda:
+        "../envs/polish.yaml" # Assuming a general polish env
     shell:
-        "medaka_consensus -i {input.reads} -d {input.asm} -o {output} -t {threads} -m {params.model}"
+        "medaka_consensus -i {input.reads} -d {input.assembly} "
+        "-o {params.outdir} -t {threads} -m r941_min_sup_g507 &> {log}"
 
-# --- Final Polished Assembly Selection ---
-def get_final_polished_assembly(wildcards):
-    """Selects the final polished assembly based on config."""
-    # For now, we assume Medaka is the final step. This can be expanded.
-    return "results/polish/{wildcards.sample}/medaka/consensus.fasta"
-
-rule polish_final:
+rule pilon:
     input:
-        get_final_polished_assembly
+        # Takes the Medaka-polished assembly and Illumina reads.
+        assembly="results/{sample}/polish/medaka/consensus.fasta",
+        illumina_r1=lambda wc: SAMPLES_DF.loc[wc.sample, "illumina_r1"],
+        illumina_r2=lambda wc: SAMPLES_DF.loc[wc.sample, "illumina_r2"]
     output:
-        "results/polish/{sample}/final_assembly.fasta"
+        # Pilon's final output is named based on the --output prefix.
+        assembly="results/{sample}/polish/pilon/assembly.fasta"
+    params:
+        outdir="results/{sample}/polish/pilon",
+        prefix="assembly",
+        mem=config["pilon"]["mem"]
+    log:
+        "logs/polish/pilon/{sample}.log"
+    threads: 12
+    conda:
+        "../envs/polish.yaml" # Assuming a general polish env
     shell:
-        "cp {input} {output}"
+        "# Step 1: Index assembly for mapping\n"
+        "bwa index {input.assembly}\n"
+        "# Step 2: Map Illumina reads to the assembly\n"
+        "bwa mem -t {threads} {input.assembly} {input.illumina_r1} {input.illumina_r2} | "
+        "samtools view -b - | samtools sort -o {params.outdir}/mapped_reads.bam\n"
+        "# Step 3: Index the BAM file\n"
+        "samtools index {params.outdir}/mapped_reads.bam\n"
+        "# Step 4: Run Pilon\n"
+        "pilon --genome {input.assembly} --frags {params.outdir}/mapped_reads.bam "
+        "--output {params.prefix} --outdir {params.outdir} --threads {threads} "
+        "--changes --verbose &> {log}"

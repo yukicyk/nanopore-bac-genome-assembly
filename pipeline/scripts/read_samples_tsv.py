@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# File: scripts/read_samples_tsv.py
+# File: pipeline/scripts/read_samples_tsv.py
 import csv, sys, json
 
 REQUIRED = {"sample_id","platform"}

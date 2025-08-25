@@ -1,0 +1,7 @@
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  # Pinning the version is good practice for reproducibility
+  - spades=3.15.5

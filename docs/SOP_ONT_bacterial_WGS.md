@@ -79,9 +79,9 @@ This section details the use of the `nanopore-bac-genome-assembly` Snakemake pip
 
 The pipeline uses two main types of configuration:
 
-1.  **Run Manifests (Schema A+)**:
+1.  **Run Manifests**:
     - These are your primary experimental records. Before running the pipeline, ensure you have created or updated a manifest file in `data/manifests/` for your run.
-    - This file contains detailed metadata about the run and samples. For guidance, see **[run_manifest_README.md](run_manifest_README.md)**.
+    - This file contains detailed metadata about the run and samples. For guidance, see **[run_manifest_README.md](run_manifest_README.md)** and refer to a template file (here)[template/run_manifest_template.tsv].
 
 2.  **Pipeline Configuration (`config/config.yaml`)**:
     - This file controls the *parameters* and *behavior* of the pipeline (e.g., thread counts, tool choices, filtering settings).
@@ -92,10 +92,10 @@ The pipeline uses two main types of configuration:
 The workflow is executed using a single `snakemake` command.
 
 1.  **Step 1: Convert Manifests to a Sample Sheet**
-    - The pipeline will automatically perform this step. It reads all manifests in `data/manifests/` and generates the primary pipeline input file: `config/samples.tsv` (Schema B). This is handled by the `build_samples_from_manifests` rule.
+    - The pipeline will automatically perform this step. It reads all manifests in `data/manifests/` and generates the primary pipeline input file: `config/samples.tsv`. This is handled by the `build_samples_from_manifests` rule.
 
 2.  **Step 2: (Optional) Fetch Public Data**
-    - If any sample in `config/samples.tsv` is missing a local read path but has a `biosample_accession`, the `resolve_samples` rule will attempt to download the data from NCBI SRA.
+    - If any sample in `config/samples.tsv` is missing a local read path but has a `biosample` or `srrs`, the `resolve_samples` rule will attempt to download the data from NCBI SRA.
     - This generates the final, authoritative sample sheet: `config/samples.resolved.tsv`.
 
 3.  **Step 3: Execute the Full Pipeline**
@@ -115,15 +115,19 @@ The workflow is executed using a single `snakemake` command.
 
 ### 8.4 Pipeline Stages and Key Tools
 
-- **Read QC**: **NanoPlot** is run on all ONT reads.
-- **Assembly**: **Flye** is the default assembler. This can be changed in `config.yaml`.
-- **Polishing**: A multi-step polishing process is applied:
-  - **Racon**: One round of short-read correction polishing.
-  - **Medaka**: One round of long-read polishing using a neural network model.
+- **Read QC**: **NanoPlot** is run on all ONT reads. **FastQC** is run on illumina paired-end reads.
+- **Assembly**: **Flye** is the default assembler for ONT reads. **SPAdes** is the default assembler for illumina only short reads.
+- **Polishing**: A multi-step polishing process is applied depending on the input data:
+  - For both ont-only and hybrid data:
+    - **Medaka**: One round of long-read polishing using a neural network model on the Flye assembly.
+  - For hybrid data:
+    - **pilon**: using illumina short reads to map and correct Indels and ambiguority in the Medaka-polished assembly.
+  - For illumina-only data:
+    - NO polishing is available.
 - **Evaluation**: The final assembly is evaluated using:
   - **QUAST**: To compare against a reference genome and assess assembly quality metrics (N50, number of contigs, etc.).
   - **Minimap2/Samtools**: To map reads back to the assembly and calculate mean coverage depth.
-- **Annotation**: The final polished assembly is annotated using **Prokka**.
+- **Annotation**: The final polished assembly is annotated using **bakta**. Alternatively **Prokka** can be used. This can be changed in `config.yaml`.
 
 ### 8.5 Deliverables
 
