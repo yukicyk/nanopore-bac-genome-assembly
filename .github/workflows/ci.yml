@@ -45,11 +45,9 @@ jobs:
         run: |
           snakemake --snakefile pipeline/Snakefile --lint
 
-      # Step 5: Run a full test on a minimal dataset
-      # A dry-run is good, but a real run on tiny data is the gold standard.
-      # This command assumes you have a small test dataset and a test config.
-      # For now, we will just run the dry-run, which is already a huge step up.
+      # Step 5: Run a full test of the workflow with a dry-run
       - name: Test workflow with a dry-run
+        working-directory: ./nanopore-bac-genome-assembly
         shell: bash -l {0} # Ensures the conda env is active
         run: |
           # First, create a dummy sample sheet for the test

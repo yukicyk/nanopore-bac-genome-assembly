@@ -8,12 +8,9 @@ rule quast:
     input:
         assembly=get_final_assemblies
     output:
-        report="results/{sample}/evaluation/quast/report.html"
+        directory("results/{sample}/evaluation/quast")
     params:
-        # No outdir needed in params, can be derived in shell command
-        # or specified directly if QUAST requires it.
-        # Let's derive it from the output for clarity.
-        outdir=lambda wildcards, output: os.path.dirname(output.report)
+       outdir="{output}"
     log:
         "logs/evaluation/quast/{sample}.log"
     threads: 8

@@ -1,11 +1,11 @@
 # Standard Operating Procedure (SOP) for Oxford Nanopore Bacterial Whole-Genome Sequencing (WGS)
 
-**Version**: 1.2
-**Effective date**: 2025-08-25
-**Author**: Dr. Yuki Chan / Lab
-**Approved by**: PI / QA
-**Applies to**: Bacterial isolates (pure culture)
-**Scope**: End-to-end workflow from culture to sequencing and data processing for ONT instruments, resulting in high-quality assemblies and associated reports.
+- **Version**: 1.2
+- **Effective date**: 2025-08-25
+- **Author**: Dr. Yuki Chan / Lab
+- **Approved by**: PI / QA
+- **Applies to**: Bacterial isolates (pure culture)
+- **Scope**: End-to-end workflow from culture to sequencing and data processing for ONT instruments, resulting in high-quality assemblies and associated reports.
 
 ## 1. Purpose
 
