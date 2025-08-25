@@ -1,8 +1,13 @@
 # ================================================================= #
 #               NANOPORE BACTERIAL GENOME PIPELINE                  #
-#                      MASTER SNAKEFILE (v2.5)                      #
+#                      MASTER SNAKEFILE (v2.6)                      #
 # ================================================================= #
 import pandas as pd
+
+# --- Loading helper functions from pipeline/rules/common.smk ---
+# This makes them globally available to all included rules below.
+include: "rules/common.smk"
+# ---------------------------------
 
 # --- 1. CONFIGURATION AND SAMPLE LOADING ---
 configfile: "config/config.yaml"
@@ -16,49 +21,13 @@ except FileNotFoundError:
 SAMPLES = list(SAMPLES_DF.index)
 
 # --- 2. FILTERED SAMPLE LISTS FOR TARGETING ---
-def has_data(series):
-    """Helper function to check for a valid, non-empty string path."""
-    return pd.notna(series) & (series != '')
 
 ONT_SAMPLES = SAMPLES_DF[has_data(SAMPLES_DF["ont_reads"])].index.tolist()
 ILLUMINA_SAMPLES = SAMPLES_DF[has_data(SAMPLES_DF["illumina_r1"])].index.tolist()
 ASSEMBLY_SAMPLES = sorted(list(set(ONT_SAMPLES + ILLUMINA_SAMPLES)))
 
 
-# --- 3. GLOBAL HELPER FUNCTIONS ---
-# All helper functions are defined here, BEFORE the include statements.
-
-def get_final_assemblies(wildcards):
-    """
-    Inspects the sample sheet for a given sample and returns the path
-    to its expected final assembly file based on the data present.
-    """
-    sample_info = SAMPLES_DF.loc[wildcards.sample]
-    has_ont = wildcards.sample in ONT_SAMPLES
-    has_illumina = wildcards.sample in ILLUMINA_SAMPLES
-
-    if has_ont and has_illumina:
-        return f"results/{wildcards.sample}/polish/pilon/assembly.fasta"
-    elif has_ont:
-        return f"results/{wildcards.sample}/polish/medaka/consensus.fasta"
-    elif has_illumina:
-        return f"results/{wildcards.sample}/assembly/spades/scaffolds.fasta"
-    else:
-        raise ValueError(f"Sample {wildcards.sample} has no reads defined.")
-
-def get_final_annotation(wildcards):
-    """
-    Inspects the config and returns the path to the expected final
-    annotation file based on the chosen annotator.
-    """
-    annotator = config.get("annotation", {}).get("tool", "bakta").lower()
-    if annotator == "prokka":
-        return f"results/{wildcards.sample}/annotation/prokka/{wildcards.sample}.gff"
-    else: # Default to bakta
-        return f"results/{wildcards.sample}/annotation/bakta/{wildcards.sample}.gbff"
-
-
-# --- 4. AGGREGATION: BUILD THE LIST OF ALL FINAL DELIVERABLES ---
+# --- 3. AGGREGATION: BUILD THE LIST OF ALL FINAL DELIVERABLES ---
 # This list constitutes the final output of the entire pipeline.
 FINAL_FILES = []
 
@@ -77,7 +46,7 @@ FINAL_FILES.extend(expand("results/{sample}/evaluation/quast/report.html", sampl
 FINAL_FILES.append("results/multiqc_report.html")
 
 
-# --- 5. MASTER RULE: REQUEST ALL TARGETS ---
+# --- 4. MASTER RULE: REQUEST ALL TARGETS ---
 rule all:
     input:
         FINAL_FILES
@@ -86,7 +55,7 @@ rule all:
         "Pipeline finished successfully. All requested outputs have been generated."
 
 
-# --- 6. MODULARIZATION: INCLUDE RULE FILES ---
+# --- 5. MODULARIZATION: INCLUDE RULE FILES ---
 # Now that all helpers and targets are defined, we can safely include the rules.
 include: "rules/qc.smk"
 include: "rules/assembly.smk"

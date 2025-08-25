@@ -21,6 +21,13 @@ test_sample: null  # e.g., "sample_01" or null to run all samples.
 # -------------------------------------------------------------------
 # Central location for all external reference files and databases.
 
+# Path where the Bakta database will be stored.
+  # The pipeline will automatically download it to this location if it's not found.
+bakta_db: "resources/bakta_db"
+  # (Optional) Specify the type of database to download ('light' or 'full').
+  # If omitted, the pipeline will default to 'light'.
+bakta_db_type: "light"
+
 resources:
   # Path to the reference genome for evaluation with QUAST.
   reference_genome: "resources/references/ecoli_k12_mg1655.fasta"
@@ -76,12 +83,10 @@ annotation:
     kingdom: "Bacteria"
     gcode: 11  # Genetic code (11 = Bacterial, Archaeal and Plant Plastid)
   
+  
+  
   # Bakta annotation settings
-  bakta:
-    # Additional Bakta parameters can be added here.
-    # Path where the Bakta database will be stored.
-    # The pipeline will automatically download it to this location if it's not found.
-    bakta_db: "resources/bakta_db"
+  bakta: 
     force: true  # Overwrite existing output
     threads: 8   # Number of threads to use
 # -------------------------------------------------------------------
