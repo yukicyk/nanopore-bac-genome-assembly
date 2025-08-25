@@ -13,6 +13,6 @@ dependencies:
   # The 'medaka-polish' package provides the 'medaka_consensus' script.
   - medaka >=1.7.2
 
-  # Pypy is a much faster Python implementation that Medaka can use.
-  # Installing it in the environment often leads to significant speedups.
-  - pypy
+  # 3. Add other tools needed.
+  - samtools>=1.14
+  - minimap2>=2.17
