@@ -1,7 +1,15 @@
+# ===================================================================
+# ||             CONDA ENVIRONMENT FOR PIPELINE REPORTING          ||
+# ===================================================================
+# This environment contains the tools needed to generate the final
+# summary report, primarily MultiQC.
+
 channels:
   - conda-forge
   - bioconda
   - defaults
+
 dependencies:
-  - python=3.9
-  - pandas
+  # MultiQC is the primary tool for aggregating bioinformatics results.
+  # Pinning the version is good practice for reproducibility.
+  - multiqc >=1.14

@@ -1,2 +1,2 @@
-sample_id	platform	biosample	srrs	ont_reads	illumina_r1	illumina_r2	biosample	srrs
-Ecoli30x	ont			/Users/yuki/Projects/nano-new/data/raw/test_small.fastq.gz					kept existing read_path
+sample_id	platform	ont_reads	illumina_r1	illumina_r2	biosample	srrs	barcode	note
+Ecoli30x	ont	/Users/yuki/Projects/nano-new/data/raw/test_small.fastq.gz						Kept existing ONT path.

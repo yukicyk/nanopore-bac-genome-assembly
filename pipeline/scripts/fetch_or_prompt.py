@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # File: pipeline/scripts/fetch_or_prompt.py
-# Version: 2.0 
+# Version: 2.1 (Robust I/O)
 """
 Resolves the samples.tsv by fetching data from SRA if local paths are missing.
 Writes a final samples.resolved.tsv with all local paths populated and the
@@ -13,49 +13,75 @@ from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-# (All helper functions like eprint, run, which, and ENA queries remain exactly the same in last version)
-# Helper functions
+# --- DEPENDENCY CHECK ---
+try:
+    import requests
+except ImportError:
+    sys.exit("ERROR: The 'requests' library is required. Please install it: pip install requests")
+
+# --- HELPER FUNCTIONS ---
 def eprint(*args, **kwargs): print(*args, file=sys.stderr, **kwargs)
 def run(cmd: List[str], check: bool = True, env: Optional[Dict[str, str]] = None): eprint("[cmd]", " ".join(cmd)); return subprocess.run(cmd, check=check, env=env)
 def ensure_parent(path: Path): path.parent.mkdir(parents=True, exist_ok=True)
 def which(prog: str) -> Optional[str]: return shutil.which(prog)
+
+# --- ENA/SRA QUERY LOGIC ---
 ENA_READ_RUN_FIELDS = ["run_accession", "instrument_platform", "library_layout"]
 ENA_BASE = "https://www.ebi.ac.uk/ena/portal/api/filereport"
 def ena_query_runs_by_biosample(biosample: str) -> List[Dict[str, str]]:
+    if not biosample: return []
     params = {"accession": biosample, "result": "read_run", "fields": ",".join(ENA_READ_RUN_FIELDS), "download": "true"}
-    r = requests.get(ENA_BASE, params=params, timeout=30)
-    if r.status_code != 200: return []
-    lines = [l for l in r.text.splitlines() if l.strip()];
-    if not lines: return []
+    try:
+        r = requests.get(ENA_BASE, params=params, timeout=30)
+        r.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
+    except requests.RequestException as e:
+        eprint(f"Warning: ENA query failed for {biosample}: {e}")
+        return []
+    lines = [l for l in r.text.splitlines() if l.strip()]
+    if not lines or len(lines) < 2: return []
     header = lines[0].split("\t")
-    return [{h: (p[i] if i < len(p) else "") for i, h in enumerate(header)} for l in lines[1:] if (p := l.split("\t"))]
+    return [dict(zip(header, l.split("\t"))) for l in lines[1:]]
+
 def platform_matches(row: Dict[str, str], want: str) -> bool:
     inst = (row.get("instrument_platform") or "").strip().upper()
     if want == "ont": return inst == "OXFORD_NANOPORE"
     if want == "illumina": return inst == "ILLUMINA"
     return False
+
 def resolve_srrs(biosample: str, platform: str) -> List[str]:
-    if not biosample: return []
     rows = ena_query_runs_by_biosample(biosample)
     return [r["run_accession"] for r in rows if platform_matches(r, platform) and r.get("run_accession")]
+
+# --- DATA DOWNLOAD LOGIC ---
 def fasterq_dump_available() -> bool: return which("fasterq-dump") is not None
 def pigz_available() -> bool: return which("pigz") is not None
-def gzip_cat_concat(src_files: List[Path], dest_gz: Path) -> bool: # ... logic is fine ...
+
+def gzip_cat_concat(src_files: List[Path], dest_gz: Path) -> bool:
     ensure_parent(dest_gz)
     if dest_gz.exists(): dest_gz.unlink()
-    cmd = ["pigz" if pigz_available() else "gzip", "-c"] + [str(p) for p in src_files]
-    with open(dest_gz, "wb") as fh: return subprocess.run(cmd, stdout=fh).returncode == 0
-def download_srr(srr: str, workdir: Path, threads: int, illumina_split: bool) -> List[Path]: 
-    args = ["fasterq-dump", srr, "-O", str(workdir), "--threads", str(threads)]
+    compressor = "pigz" if pigz_available() else "gzip"
+    # Use a temporary file for the concatenated output before compressing
+    with tempfile.NamedTemporaryFile(mode='wb', delete=False) as tmp_cat:
+        for src in src_files:
+            with open(src, 'rb') as f_in:
+                shutil.copyfileobj(f_in, tmp_cat)
+    # Now compress the concatenated file
+    with open(tmp_cat.name, 'rb') as f_in, open(dest_gz, 'wb') as f_out:
+        proc = subprocess.run([compressor], stdin=f_in, stdout=f_out)
+    os.unlink(tmp_cat.name)
+    return proc.returncode == 0
+
+def download_srr(srr: str, workdir: Path, threads: int, illumina_split: bool) -> List[Path]:
+    args = ["fasterq-dump", srr, "-O", str(workdir), "--threads", str(threads), "--temp", str(workdir)]
     if illumina_split: args.append("--split-files")
     run(args)
+    # Return paths that were actually created
     if illumina_split:
-        return [p for p in [workdir / f"{srr}_1.fastq", workdir / f"{srr}_2.fastq", workdir / f"{srr}.fastq"] if p.exists()]
-    return [p for p in [workdir / f"{srr}.fastq"] if p.exists()]
+        return [p for p in [workdir / f"{srr}_1.fastq", workdir / f"{srr}_2.fastq"] if p.exists()]
+    else:
+        return [p for p in [workdir / f"{srr}.fastq"] if p.exists()]
 
-# --- REFINED MERGE LOGIC ---
 def merge_runs_ont(sample_id: str, srrs: List[str], tmpdir: Path, outdir: Path, threads: int) -> Optional[Path]:
-    # CHANGED: Standardized output filename
     target = outdir / f"{sample_id}.ont.fastq.gz"
     produced = [f for srr in srrs for f in download_srr(srr, tmpdir, threads, False)]
     if not produced: return None
@@ -63,24 +89,21 @@ def merge_runs_ont(sample_id: str, srrs: List[str], tmpdir: Path, outdir: Path, 
     return None
 
 def merge_runs_illumina(sample_id: str, srrs: List[str], tmpdir: Path, outdir: Path, threads: int) -> Tuple[Optional[Path], Optional[Path]]:
-    # CHANGED: Standardized output filenames
     out_r1 = outdir / f"{sample_id}.illumina.R1.fastq.gz"
     out_r2 = outdir / f"{sample_id}.illumina.R2.fastq.gz"
-    r1_list, r2_list, se_list = [], [], []
+    r1_list, r2_list = [], []
     for srr in srrs:
-        for f in download_srr(srr, tmpdir, threads, True):
+        downloaded = download_srr(srr, tmpdir, threads, True)
+        for f in downloaded:
             if f.name.endswith("_1.fastq"): r1_list.append(f)
             elif f.name.endswith("_2.fastq"): r2_list.append(f)
-            else: se_list.append(f)
     if r1_list: gzip_cat_concat(r1_list, out_r1)
     if r2_list: gzip_cat_concat(r2_list, out_r2)
-    if se_list and not r1_list: gzip_cat_concat(se_list, out_r1)
     return (out_r1 if out_r1.exists() else None, out_r2 if out_r2.exists() else None)
 
-# --- CHANGED: DATA CONTRACT I/O ---
+# --- DATA CONTRACT I/O (ROBUST VERSION) ---
 @dataclass
 class SampleRow:
-    # These fields map directly to the refined Data Contract
     sample_id: str
     platform: str
     ont_reads: str = ""
@@ -89,34 +112,39 @@ class SampleRow:
     biosample: str = ""
     srrs: str = ""
     barcode: str = ""
-    # Internal tracking fields
     note: str = ""
 
     @classmethod
     def from_dict(cls, d: Dict[str, str]) -> "SampleRow":
-        # Create a new instance, filling fields from the input dict
-        return cls(**{f.name: (d.get(f.name) or "").strip() for f in fields(cls) if f.name != 'note'})
+        # Only use keys that are actual fields in this dataclass
+        field_names = {f.name for f in fields(cls)}
+        filtered_dict = {k: (v or "").strip() for k, v in d.items() if k in field_names}
+        return cls(**filtered_dict)
 
     def to_dict(self) -> Dict[str, str]:
         return {f.name: getattr(self, f.name) for f in fields(self)}
 
 def read_tsv(p: Path) -> List[SampleRow]:
-    with p.open("r", newline="") as fh:
+    with p.open("r", newline="", encoding="utf-8") as fh:
+        # DictReader correctly handles out-of-order columns
         reader = csv.DictReader(fh, delimiter="\t")
         return [SampleRow.from_dict(row) for row in reader]
 
 def write_tsv(p: Path, rows: List[SampleRow]):
     ensure_parent(p)
+    # The header is defined *only* by the SampleRow dataclass fields. This is the key fix.
     header = [f.name for f in fields(SampleRow)]
-    with p.open("w", newline="") as fh:
-        w = csv.DictWriter(fh, fieldnames=header, delimiter="\t")
-        w.writeheader()
-        w.writerows([r.to_dict() for r in rows])
+    with p.open("w", newline="", encoding="utf-8") as fh:
+        writer = csv.DictWriter(fh, fieldnames=header, delimiter="\t")
+        writer.writeheader()
+        writer.writerows([r.to_dict() for r in rows])
 
 # --- MAIN WORKFLOW ---
-def process_sample(s: SampleRow, outdir: Path, threads: int, force: bool) -> SampleRow:
-    # Check if ONT path needs resolving
-    if not s.ont_reads and (s.platform in ['ont', 'hybrid']):
+def process_sample(s: SampleRow, outdir: Path, threads: int) -> SampleRow:
+    # If a path is already given, we trust it and do nothing.
+    if s.ont_reads and Path(s.ont_reads).exists():
+        s.note = "Kept existing ONT path."
+    elif s.platform in ['ont', 'hybrid']:
         srrs_to_fetch = [x.strip() for x in s.srrs.split(',') if x.strip()] or resolve_srrs(s.biosample, 'ont')
         if srrs_to_fetch:
             eprint(f"[{s.sample_id}] Fetching ONT reads for SRRs: {srrs_to_fetch}")
@@ -124,9 +152,12 @@ def process_sample(s: SampleRow, outdir: Path, threads: int, force: bool) -> Sam
                 path = merge_runs_ont(s.sample_id, srrs_to_fetch, Path(tmp), outdir, threads)
                 s.ont_reads = str(path) if path else ""
                 s.note += "ONT fetched; "
+        else:
+            s.note += "ONT SRRs not found; "
 
-    # Check if Illumina paths need resolving
-    if not s.illumina_r1 and (s.platform in ['illumina', 'hybrid']):
+    if s.illumina_r1 and Path(s.illumina_r1).exists():
+        s.note += "Kept existing Illumina path."
+    elif s.platform in ['illumina', 'hybrid']:
         srrs_to_fetch = [x.strip() for x in s.srrs.split(',') if x.strip()] or resolve_srrs(s.biosample, 'illumina')
         if srrs_to_fetch:
             eprint(f"[{s.sample_id}] Fetching Illumina reads for SRRs: {srrs_to_fetch}")
@@ -135,9 +166,10 @@ def process_sample(s: SampleRow, outdir: Path, threads: int, force: bool) -> Sam
                 s.illumina_r1 = str(r1) if r1 else ""
                 s.illumina_r2 = str(r2) if r2 else ""
                 s.note += "Illumina fetched; "
+        else:
+            s.note += "Illumina SRRs not found; "
 
-    # --- NEW: Final platform resolution ---
-    # This is the crucial step to determine the final platform status.
+    # Final platform resolution based on what files actually exist
     has_ont = bool(s.ont_reads and Path(s.ont_reads).exists())
     has_illumina = bool(s.illumina_r1 and Path(s.illumina_r1).exists())
 
@@ -148,10 +180,9 @@ def process_sample(s: SampleRow, outdir: Path, threads: int, force: bool) -> Sam
     elif has_illumina:
         s.platform = "illumina"
     else:
-        s.note += "ERROR: No valid read paths found or fetched."
+        s.platform = "none" # Explicitly mark as having no data
+        if not s.note: s.note = "ERROR: No valid read paths found or fetched."
 
-    if not s.note:
-        s.note = "Paths validated."
     return s
 
 def main():
@@ -160,15 +191,19 @@ def main():
     ap.add_argument("--out", required=True, help="Output TSV (config/samples.resolved.tsv)")
     ap.add_argument("--outdir", default="data/raw", help="Directory for output FASTQs")
     ap.add_argument("--threads", type=int, default=4, help="Threads for fasterq-dump")
-    ap.add_argument("--force", action="store_true", help="Re-download even if outputs exist")
     args = ap.parse_args()
+
+    # Check for required tools
+    if not fasterq_dump_available():
+        eprint("ERROR: 'fasterq-dump' not found in PATH. Please install SRA-Tools.")
+        sys.exit(1)
 
     samples_tsv = Path(args.samples)
     if not samples_tsv.exists():
         eprint(f"Input TSV missing: {samples_tsv}"); sys.exit(1)
 
     initial_rows = read_tsv(samples_tsv)
-    final_rows = [process_sample(s, Path(args.outdir), args.threads, args.force) for s in initial_rows]
+    final_rows = [process_sample(s, Path(args.outdir), args.threads) for s in initial_rows]
     write_tsv(Path(args.out), final_rows)
     eprint(f"Wrote resolved TSV to: {args.out}")
 
