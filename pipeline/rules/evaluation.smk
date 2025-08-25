@@ -10,7 +10,7 @@ rule quast:
     output:
         directory("results/{sample}/evaluation/quast")
     params:
-       outdir="{output}"
+       outdir=lambda wildcards, output: output
     log:
         "logs/evaluation/quast/{sample}.log"
     threads: 8
