@@ -11,7 +11,7 @@ channels:
 dependencies:
   # Medaka is a tool to polish ONT assemblies using neural networks.
   # The 'medaka-polish' package provides the 'medaka_consensus' script.
-  - medaka-polish >=1.7.2
+  - medaka >=1.7.2
 
   # Pypy is a much faster Python implementation that Medaka can use.
   # Installing it in the environment often leads to significant speedups.

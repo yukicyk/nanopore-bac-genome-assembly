@@ -1,0 +1,21 @@
+# ===================================================================
+# ||          CONDA ENVIRONMENT FOR CONTINUOUS INTEGRATION         ||
+# ===================================================================
+# This environment is used by the GitHub Actions runner.
+# It only needs the core Snakemake package to execute the workflow.
+# The workflow itself, via --use-conda, will handle rule-specific environments.
+
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+
+dependencies:
+  # Snakemake is the workflow manager
+  - snakemake >=7.0
+
+  # pandas is used in the Snakefile to read the sample sheet
+  - pandas
+
+  # requests is used by our helper scripts
+  - requests
