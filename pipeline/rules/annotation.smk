@@ -8,12 +8,14 @@ rule bakta:
     input:
         assembly=get_final_assemblies
     output:
-        # This path must match the output of get_final_annotation for 'bakta'
         gbff="results/{sample}/annotation/bakta/{sample}.gbff"
     params:
         outdir="results/{sample}/annotation/bakta",
         prefix="{sample}",
-        db=config["bakta"]["db_path"]
+        # --- CORRECTED LINE ---
+        # Use .get() for safe access. If config['bakta'] doesn't exist,
+        # this will return None instead of causing a KeyError.
+        db=config.get("bakta", {}).get("db_path")
     log:
         "logs/annotation/bakta/{sample}.log"
     threads: 16
@@ -29,17 +31,18 @@ rule prokka:
     input:
         assembly=get_final_assemblies
     output:
-        # This path must match the output of get_final_annotation for 'prokka'
         gff="results/{sample}/annotation/prokka/{sample}.gff"
     params:
         outdir="results/{sample}/annotation/prokka",
         prefix="{sample}",
-        kingdom=config["prokka"]["kingdom"]
+        # --- CORRECTED LINE ---
+        # Same for prokka for consistency and robustness.
+        kingdom=config.get("prokka", {}).get("kingdom", "Bacteria")
     log:
         "logs/annotation/prokka/{sample}.log"
     threads: 8
     conda:
-        "../envs/prokka.yaml" 
+        "../envs/prokka.yaml"
     shell:
         "prokka --outdir {params.outdir} --prefix {params.prefix} "
         "--kingdom {params.kingdom} --cpus {threads} "

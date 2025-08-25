@@ -1,107 +1,76 @@
 # ================================================================= #
 #                         RULE: READ QC                             #
 # ================================================================= #
-# These rules perform initial quality control on the raw reads.
-# - NanoPlot is run on ONT reads.
-# - FastQC is run on Illumina reads.
+
+# --- Helper function to get ONT reads for a sample ---
+def get_ont_reads(wildcards):
+    """
+    Returns the path to ONT reads for a given sample.
+    This function is robust against missing values (NaN) and empty strings.
+    If no valid path is found, it returns an empty list, causing Snakemake to skip.
+    """
+    sample_info = SAMPLES_DF.loc[wildcards.sample]
+    ont_path = sample_info.get("ont_reads")
+
+    # This check handles NaN, None, and empty strings ('').
+    # It only returns the path if it is a string with content.
+    if ont_path and isinstance(ont_path, str):
+        return ont_path
+    else:
+        # Returning an empty list is a safe way to tell Snakemake to skip.
+        return []
 
 # --- Helper function to get Illumina reads for a sample ---
 def get_illumina_reads(wildcards):
-    """Returns a list of Illumina read paths for a sample if they exist."""
+    """
+    Returns a list of Illumina read paths for a sample.
+    This function is robust against missing values (NaN) and empty strings.
+    If the sample has no Illumina reads, it returns an empty list.
+    """
     reads = []
     sample_info = SAMPLES_DF.loc[wildcards.sample]
-    if pd.notna(sample_info.get("illumina_r1")) and sample_info.get("illumina_r1"):
-        reads.append(sample_info["illumina_r1"])
-    if pd.notna(sample_info.get("illumina_r2")) and sample_info.get("illumina_r2"):
-        reads.append(sample_info["illumina_r2"])
+
+    r1_path = sample_info.get("illumina_r1")
+    if r1_path and isinstance(r1_path, str):
+        reads.append(r1_path)
+
+    r2_path = sample_info.get("illumina_r2")
+    if r2_path and isinstance(r2_path, str):
+        reads.append(r2_path)
+    
     return reads
+
+# --- QC Rules ---
 
 rule nanoplot:
     input:
-        # This rule only runs if the sample has ONT reads.
-        reads=lambda wc: SAMPLES_DF.loc[wc.sample, "ont_reads"]
+        reads=get_ont_reads
     output:
-        report=report("results/{sample}/qc/nanoplot/NanoPlot-report.html",
-                      caption="../report/nanoplot.rst", category="QC")
+        # Using touch to create a placeholder file for the report
+        report=touch("results/{sample}/qc/nanoplot/NanoPlot-report.html")
     params:
         outdir="results/{sample}/qc/nanoplot"
     log:
         "logs/qc/nanoplot/{sample}.log"
-    threads: 4
+    threads: config["threads"]["filtlong"] # A reasonable default
     conda:
-        "../envs/nanoplot.yaml"
+        "../envs/nanoplot.yaml" # Assumed path
     shell:
         "NanoPlot --fastq {input.reads} --outdir {params.outdir} "
         "--threads {threads} &> {log}"
 
 rule fastqc:
     input:
-        # This rule only runs if the sample has Illumina reads.
         reads=get_illumina_reads
     output:
-        # FastQC creates one report per input file.
-        html=expand("results/{{sample}}/qc/fastqc/{read_pair}_fastqc.html",
-                    read_pair=["R1", "R2"])
+        # Using a flag file to mark completion, since FastQC creates a directory
+        done=touch("results/{sample}/qc/fastqc.done")
     params:
         outdir="results/{sample}/qc/fastqc"
     log:
         "logs/qc/fastqc/{sample}.log"
     threads: 2
     conda:
-        "../envs/fastqc.yaml"
+        "../envs/fastqc.yaml" # Assumed path
     shell:
-        "fastqc --outdir {params.outdir} --threads {threads} {input.reads} &> {log}"
-
-# ================================================================= #
-#                         RULE: READ QC                             #
-# ================================================================= #
-# These rules perform initial quality control on the raw reads.
-# - NanoPlot is run on ONT reads.
-# - FastQC is run on Illumina reads.
-
-# --- Helper function to get Illumina reads for a sample ---
-def get_illumina_reads(wildcards):
-    """Returns a list of Illumina read paths for a sample if they exist."""
-    reads = []
-    sample_info = SAMPLES_DF.loc[wildcards.sample]
-    if pd.notna(sample_info.get("illumina_r1")) and sample_info.get("illumina_r1"):
-        reads.append(sample_info["illumina_r1"])
-    if pd.notna(sample_info.get("illumina_r2")) and sample_info.get("illumina_r2"):
-        reads.append(sample_info["illumina_r2"])
-    return reads
-
-rule nanoplot:
-    input:
-        # This rule only runs if the sample has ONT reads.
-        reads=lambda wc: SAMPLES_DF.loc[wc.sample, "ont_reads"]
-    output:
-        report=report("results/{sample}/qc/nanoplot/NanoPlot-report.html",
-                      caption="../report/nanoplot.rst", category="QC")
-    params:
-        outdir="results/{sample}/qc/nanoplot"
-    log:
-        "logs/qc/nanoplot/{sample}.log"
-    threads: 4
-    conda:
-        "../envs/nanoplot.yaml"
-    shell:
-        "NanoPlot --fastq {input.reads} --outdir {params.outdir} "
-        "--threads {threads} &> {log}"
-
-rule fastqc:
-    input:
-        # This rule only runs if the sample has Illumina reads, support paired-end reads only.
-        reads=get_illumina_reads
-    output:
-        # FastQC creates one report per input file.
-        html=expand("results/{{sample}}/qc/fastqc/{read_pair}_fastqc.html",
-                    read_pair=["R1", "R2"])
-    params:
-        outdir="results/{sample}/qc/fastqc"
-    log:
-        "logs/qc/fastqc/{sample}.log"
-    threads: 2
-    conda:
-        "../envs/fastqc.yaml"
-    shell:
-        "fastqc --outdir {params.outdir} --threads {threads} {input.reads} &> {log}"
+        "fastqc --outdir {params.outdir} --threads {threads} {input} &> {log}"

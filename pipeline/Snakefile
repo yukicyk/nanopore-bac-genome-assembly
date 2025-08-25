@@ -1,10 +1,10 @@
 # ================================================================= #
 #               NANOPORE BACTERIAL GENOME PIPELINE                  #
-#                      MASTER SNAKEFILE (v2.1)                      #
+#                      MASTER SNAKEFILE (v2.5)                      #
 # ================================================================= #
 import pandas as pd
 
-# --- 1. CONFIGURATION ---
+# --- 1. CONFIGURATION AND SAMPLE LOADING ---
 configfile: "config/config.yaml"
 
 try:
@@ -15,17 +15,27 @@ except FileNotFoundError:
 
 SAMPLES = list(SAMPLES_DF.index)
 
+# --- 2. FILTERED SAMPLE LISTS FOR TARGETING ---
+def has_data(series):
+    """Helper function to check for a valid, non-empty string path."""
+    return pd.notna(series) & (series != '')
 
-# --- 2. LOGIC: DETERMINE FINAL OUTPUTS PER SAMPLE ---
+ONT_SAMPLES = SAMPLES_DF[has_data(SAMPLES_DF["ont_reads"])].index.tolist()
+ILLUMINA_SAMPLES = SAMPLES_DF[has_data(SAMPLES_DF["illumina_r1"])].index.tolist()
+ASSEMBLY_SAMPLES = sorted(list(set(ONT_SAMPLES + ILLUMINA_SAMPLES)))
+
+
+# --- 3. GLOBAL HELPER FUNCTIONS ---
+# All helper functions are defined here, BEFORE the include statements.
 
 def get_final_assemblies(wildcards):
     """
     Inspects the sample sheet for a given sample and returns the path
-    to its expected final assembly file.
+    to its expected final assembly file based on the data present.
     """
     sample_info = SAMPLES_DF.loc[wildcards.sample]
-    has_ont = pd.notna(sample_info.get("ont_reads")) and sample_info.get("ont_reads")
-    has_illumina = pd.notna(sample_info.get("illumina_r1")) and sample_info.get("illumina_r1")
+    has_ont = wildcards.sample in ONT_SAMPLES
+    has_illumina = wildcards.sample in ILLUMINA_SAMPLES
 
     if has_ont and has_illumina:
         return f"results/{wildcards.sample}/polish/pilon/assembly.fasta"
@@ -34,43 +44,50 @@ def get_final_assemblies(wildcards):
     elif has_illumina:
         return f"results/{wildcards.sample}/assembly/spades/scaffolds.fasta"
     else:
-        return []
+        raise ValueError(f"Sample {wildcards.sample} has no reads defined.")
 
-# --- NEW HELPER FUNCTION ---
 def get_final_annotation(wildcards):
     """
     Inspects the config and returns the path to the expected final
     annotation file based on the chosen annotator.
     """
-    # Default to 'bakta' if the option is missing in the config
-    annotator = config.get("annotator", "bakta").lower()
+    annotator = config.get("annotation", {}).get("tool", "bakta").lower()
     if annotator == "prokka":
         return f"results/{wildcards.sample}/annotation/prokka/{wildcards.sample}.gff"
     else: # Default to bakta
         return f"results/{wildcards.sample}/annotation/bakta/{wildcards.sample}.gbff"
 
 
-# --- 3. AGGREGATION: DEFINE ALL FINAL DELIVERABLES ---
+# --- 4. AGGREGATION: BUILD THE LIST OF ALL FINAL DELIVERABLES ---
+# This list constitutes the final output of the entire pipeline.
+FINAL_FILES = []
+
+# CORRECTED LOGIC: Use a list comprehension to call the helper functions for each sample.
+# This is the correct way to generate dynamic file paths. We create a simple
+# object that mimics Snakemake's wildcards object for the helper functions to use.
+class MockWildcards:
+    def __init__(self, sample):
+        self.sample = sample
+
+FINAL_FILES.extend([get_final_assemblies(MockWildcards(s)) for s in ASSEMBLY_SAMPLES])
+FINAL_FILES.extend([get_final_annotation(MockWildcards(s)) for s in ASSEMBLY_SAMPLES])
+
+# Use expand() for rules that have a simple, non-conditional output path.
+FINAL_FILES.extend(expand("results/{sample}/evaluation/quast/report.html", sample=ASSEMBLY_SAMPLES))
+FINAL_FILES.append("results/multiqc_report.html")
+
+
+# --- 5. MASTER RULE: REQUEST ALL TARGETS ---
 rule all:
     input:
-        # Updated to use lambda functions to generate the dynamic file lists.
-        # Snakemake executes these functions to get the list of inputs.
-
-        # 1. Get all final assemblies by calling our helper for each sample.
-        lambda wc: [get_final_assemblies(type('Wildcards', (), {'sample': s})()) for s in SAMPLES],
-
-        # 2. Get all final annotations by calling our helper for each sample.
-        lambda wc: [get_final_annotation(type('Wildcards', (), {'sample': s})()) for s in SAMPLES],
-
-        # 3. For static paths, expand still works perfectly.
-        expand("results/{sample}/evaluation/quast/report.html", sample=SAMPLES),
-
-        # 4. Include single files directly.
-        "results/multiqc_report.html"
+        FINAL_FILES
+    default_target: True
     message:
         "Pipeline finished successfully. All requested outputs have been generated."
 
-# --- 4. MODULARIZATION: INCLUDE RULE FILES ---
+
+# --- 6. MODULARIZATION: INCLUDE RULE FILES ---
+# Now that all helpers and targets are defined, we can safely include the rules.
 include: "rules/qc.smk"
 include: "rules/assembly.smk"
 include: "rules/polish.smk"

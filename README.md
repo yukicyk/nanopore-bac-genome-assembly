@@ -38,7 +38,7 @@ The pipeline automates the following steps, from raw reads to an annotated assem
         F --> G["Assembly Polishing <br> (Medaka / Pilon)"];
         G --> H{"Final High-Quality Assembly"};
         H --> I["Evaluation (QUAST)"];
-        H --> J["Annotation (Bakta)"];
+        H --> J["Annotation (Bakta or Prokka)"];
         I & J --> K["Final Summary Report <br> (MultiQC)"];
     end
 
