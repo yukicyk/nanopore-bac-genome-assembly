@@ -1,10 +1,18 @@
-name: ont-polish
+# ===================================================================
+# ||              CONDA ENVIRONMENT FOR POLISHING                  ||
+# ===================================================================
+# This environment contains tools for polishing a long-read assembly.
+
 channels:
   - conda-forge
   - bioconda
   - defaults
+
 dependencies:
-  - python =3.11
-  - racon
-  - minimap2
-  
+  # Medaka is a tool to polish ONT assemblies using neural networks.
+  # The 'medaka-polish' package provides the 'medaka_consensus' script.
+  - medaka-polish >=1.7.2
+
+  # Pypy is a much faster Python implementation that Medaka can use.
+  # Installing it in the environment often leads to significant speedups.
+  - pypy
