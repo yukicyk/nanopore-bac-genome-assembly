@@ -100,9 +100,30 @@
 - raw_data_path, fastq_output_path, backup_paths
 - pore_occupancy_initial_pct (if available)
 
-## Minimal required fields for the pipeline to actually works
-- **"sample_id", "platform", "ont_reads":** column headers in exact words
-- "illumina_r1", "illumina_r2","biosample", "srrs", "barcode": optional column headers, these could be input manually in the samples.tsv, especially when raw data is not available, leaving those path blank, and providing biosample, or preferrable SRR# accessions will activate helper script to initiate downloading of the raw data.
+## Minimal required fields for the pipeline to actually work
+
+To ensure the bioinformatics pipeline can correctly identify and process your samples, the following column headers **must be present and named exactly as shown** in your final `samples.tsv` file, which is generated from this manifest.
+
+-   **`sample_id`**: **(Required)** The unique identifier for each sample. This is used to name all output directories and files.
+
+-   **`platform`**: **(Required)** Describes the sequencing data type. Must be one of `ont`, `illumina`, or `hybrid`. While the pipeline infers data presence from read paths, this column is crucial for metadata and potential future logic.
+
+-   **`ont_reads`**: **(Required for ONT/Hybrid)** The file path to the basecalled, demultiplexed FASTQ file for Oxford Nanopore reads. The pipeline uses the presence of a path in this column to identify samples that have long-read data.
+
+-   **`illumina_r1`**: **(Required for Illumina/Hybrid)** The file path to the R1 FASTQ file for Illumina reads. The pipeline uses this to identify samples with short-read data.
+
+-   **`illumina_r2`**: **(Optional but Recommended for Illumina/Hybrid)** The file path to the R2 FASTQ file. If R1 is present, R2 is expected for paired-end processing.
+
+### Columns for Automatic Data Fetching
+
+If you are using public data, leave the read path columns (`ont_reads`, etc.) blank and provide one of the following:
+
+-   **`srrs`**: A comma-separated list of SRA Run accessions (e.g., `SRR123456,SRR123457`). This is the **preferred** method as it is the most specific.
+-   **`biosample`**: A BioSample accession (e.g., `SAMN123456`). The helper script will use this to find associated SRA runs.
+
+### Other Important Columns
+
+-   **`barcode`**: If samples were multiplexed, this column should contain the barcode ID (e.g., `NB01`) for traceability.
 
 ## QC checkpoints aligned to CDC/APHL Bioinformatics QC guidance
 - Pre-assembly QC: Record NanoQC/NanoFilt settings and summaries (for ONT).

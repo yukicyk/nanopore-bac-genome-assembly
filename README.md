@@ -3,7 +3,6 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Snakemake](https://img.shields.io/badge/snakemake-≥7.0-brightgreen.svg)](https://snakemake.github.io)
 
-
 A robust, reproducible, and standards-aware Snakemake pipeline for assembling high-quality bacterial genomes from Oxford Nanopore (ONT) and (optional) Illumina data.
 
 This workflow is designed with best practices for clinical and research environments in mind, emphasizing traceability, quality control, and comprehensive documentation, inspired by GLP and ISO standards.
@@ -13,33 +12,33 @@ This workflow is designed with best practices for clinical and research environm
 ## Features
 
 - **Reproducible**: Uses Conda environments to ensure all tools are version-locked.
-- **Scalable**: Easily runs on one sample or hundreds by simply adding a manifest file.
+- **Scalable**: Easily runs on one sample or hundreds through a simple, two-step input process.
 - **Modular**: The workflow is broken into logical, self-contained rule files.
-- **Quality-Focused**: Integrates multiple polishing and evaluation steps (Medaka, pilon, QUAST).
-- **Automated Reporting**: Generates a final summary report with key QC metrics for all samples.
+- **Quality-Focused**: Integrates multiple polishing and evaluation steps (Medaka, Pilon, QUAST).
+- **Automated Reporting**: Generates a final MultiQC report with key metrics for all samples.
 - **Comprehensive Documentation**: Includes a full SOP, validation plans, and QC acceptance criteria.
 
 ## Workflow Overview
 
-The pipeline automates the following steps, from raw reads to an annotated assembly and final report:
+The pipeline automates all steps from prepared reads to an annotated assembly. The input data flow is designed to be flexible for both wet-lab and dry-lab users.
 
 ```mermaid
    flowchart TD
-    subgraph "Phase 1: Input Preparation (Manual)"
+    subgraph "Phase 1: Input Preparation (Manual or Scripted)"
         direction LR
-        A["Input: Run Manifest"] --> |manifest_to_samples.py| B["samples.tsv"];
-        B -- "or create manually" --> C{Sample Sheet};
-        C --> |fetch_or_prompt.py| D["samples.resolved.tsv"];
+        A["Input: run_manifest.tsv"] --> |manifest_to_samples.py| B["config/samples.tsv"];
+        C["Input: Accession IDs <br> (e.g., SRR...)"] --> |Manual Edit| B;
+        B --> |fetch_or_prompt.py| D["config/samples.resolved.tsv <br> **Pipeline's True Input**"];
     end
 
     subgraph "Phase 2: Automated Pipeline (Snakemake)"
         D --> E["Raw Read QC <br> (NanoPlot / FastQC)"];
         E --> F["Genome Assembly <br> (Flye / SPAdes)"];
         F --> G["Assembly Polishing <br> (Medaka / Pilon)"];
-        G --> H{"Final High-Quality Assembly"};
+        G --> H["Final High-Quality Assembly"];
         H --> I["Evaluation (QUAST)"];
         H --> J["Annotation (Bakta or Prokka)"];
-        I & J --> K["Final Summary Report <br> (MultiQC)"];
+        E & I & J --> K["Final Summary Report <br> (MultiQC)"];
     end
 
 ```
@@ -53,23 +52,43 @@ Clone the repository and create the main Snakemake environment.
 
 ```bash
 # Clone the repository
-git clone https://github.com/YOUR_USERNAME/YOUR_REPOSITORY.git
-cd YOUR_REPOSITORY
+git clone https://github.com/yukicyk/nanopore-bac-genome-assembly
+cd nanopore-bac-genome-assembly
 
 # Create the Conda environment for Snakemake
 # This environment is only for running the Snakemake orchestrator
-mamba env create -f pipeline/envs/snakemake.yaml
-conda activate snakemake_env
+mamba env create --name bac-wgs-env -f pipeline/envs/snakemake.yaml
+conda activate bac-wgs-env
 ```
 
-3. Configuration
- 1. Add Run Manifests: Place your experimental metadata files (in .tsv format) into the data/manifests/ directory. You can use data/manifests/run_manifest_template.tsv as a starting point. The pipeline will automatically find and process all samples listed in these files.
+3. Configuration: Prepare the Sample Sheet
+The pipeline's true input is a single file: config/samples.resolved.tsv. You can generate this file using one of two pathways:
+**Pathway A (For new lab data):**
 
- 2. Customize Parameters (Optional): Edit config/config.yaml to adjust tool parameters, thread counts, or change the default assembler/polisher.
+1. Fill out a manifest file for your sequencing run and place it in data/manifests/. See docs/run_manifest_README.md for detailed instructions.
+2. Run the helper scripts to process your manifest and create the final resolved sample sheet:Pathway A (For new lab data):
+
+```bash
+# Step 1: Convert your manifest to the primary sample sheet
+python pipeline/scripts/manifest_to_samples.py
+
+# Step 2: Resolve paths and download data if needed
+python pipeline/scripts/fetch_or_prompt.py
+
+```
+**Pathway B (For public data or manual setup):**
+
+1. Manually create or edit the file config/samples.tsv.
+2. For each sample, provide a sample_id and an accession code in the srrs or biosample column. Leave the ont_reads and illumina_r* columns blank.
+3. Run the resolver script to download the data and create the final sample sheet:
+
+```bash
+python pipeline/scripts/fetch_or_prompt.py
+```
+At the end of either pathway, you will have a valid config/samples.resolved.tsv ready for the pipeline.
 
 4. Execution
-Run the pipeline. Snakemake will automatically handle the creation of all other required software environments.
-
+Run the pipeline. Snakemake will read config/samples.resolved.tsv and automatically handle all analysis steps.
 ```bash
 # Perform a dry-run to see what tasks will be executed
 snakemake -n --use-conda -s pipeline/Snakefile
@@ -77,7 +96,7 @@ snakemake -n --use-conda -s pipeline/Snakefile
 # Execute the full pipeline on all available cores
 snakemake --cores all --use-conda --reason -s pipeline/Snakefile
 ```
-Upon completion, the final results will be in the results/ directory, and a full summary can be found in reports/assembly_summary_report.md.
+Upon completion, all results will be in the results/ directory.
 
 ## Directory Structure
 

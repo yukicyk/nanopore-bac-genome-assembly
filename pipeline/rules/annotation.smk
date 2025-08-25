@@ -33,8 +33,10 @@ rule download_bakta_db:
         # The output is always the final, correct path.
         directory(BAKTA_DB_PATH)
     params:
-        # The download command still needs the parent directory.
-        outdir=BAKTA_DB_BASE_PATH,
+        # --- CORRECTED LINE ---
+        # Dynamically determine the parent directory from the full output path.
+        # This removes the hardcoded dependency on BAKTA_DB_BASE_PATH here.
+        outdir=lambda wildcards, output: os.path.dirname(output[0]),
         db_type=BAKTA_DB_TYPE
     log:
         "logs/setup/download_bakta_db.log"
@@ -54,7 +56,9 @@ rule bakta:
     output:
         gbff="results/{sample}/annotation/bakta/{sample}.gbff"
     params:
-        outdir="results/{sample}/annotation/bakta",
+        # --- CORRECTED LINE ---
+        # Dynamically get the output directory from the output file path.
+        outdir=lambda wildcards, output: os.path.dirname(output.gbff),
         prefix="{sample}"
     log:
         "logs/annotation/bakta/{sample}.log"

@@ -1,7 +1,7 @@
 # Standard Operating Procedure (SOP) for Oxford Nanopore Bacterial Whole-Genome Sequencing (WGS)
 
-**Version**: 1.1
-**Effective date**: 2025-08-22
+**Version**: 1.2
+**Effective date**: 2025-08-25
 **Author**: Dr. Yuki Chan / Lab
 **Approved by**: PI / QA
 **Applies to**: Bacterial isolates (pure culture)
@@ -73,71 +73,96 @@ This section details the use of the `nanopore-bac-genome-assembly` Snakemake pip
   # Demultiplex using the BAM output
   dorado demux --kit-name <KIT_NAME> --output-dir demux/ basecalls.bam
   ```
-- Record the basecaller version and model used in the run manifest.
+- Record the basecaller version and model, and the path to the final FASTQ files  in your run manifest.
 
 ### 8.2 Pipeline Setup and Configuration
 
-The pipeline uses two main types of configuration:
+The pipeline requires a single, definitive sample sheet named `config/samples.resolved.tsv`. This file can be generated in two primary ways:
 
-1.  **Run Manifests**:
-    - These are your primary experimental records. Before running the pipeline, ensure you have created or updated a manifest file in `data/manifests/` for your run.
-    - This file contains detailed metadata about the run and samples. For guidance, see **[run_manifest_README.md](run_manifest_README.md)** and refer to a template file (here)[template/run_manifest_template.tsv].
+1.  **Pathway A (For Lab-Generated Data)**:
+    - First, record all experimental metadata in a `run_manifest.tsv` file located in `data/manifests/`. Use the provided template and see `run_manifest_README.md` for detailed guidance.
+    - Next, run the helper script to convert your manifest into the primary sample sheet:
 
-2.  **Pipeline Configuration (`config/config.yaml`)**:
-    - This file controls the *parameters* and *behavior* of the pipeline (e.g., thread counts, tool choices, filtering settings).
-    - It does **not** define which samples to run. The pipeline automatically discovers all samples from the manifests.
+    ```bash
+     python pipeline/scripts/manifest_to_samples.py
+    ```
+    - This creates `config/samples.tsv`.
 
-### 8.3 Running the Pipeline
+2.  **Pathway B (For Public Data or Manual Entry)**:
+    - Manually create or edit the `config/samples.tsv` file.
+    - Instead of providing local file paths for `ont_reads`, `illumina_r1`, etc., you can provide public accession codes in the `biosample` or `srrs` columns.
 
-The workflow is executed using a single `snakemake` command.
+3. **Final Unification Step**:
+    - Run the final helper script that takes config/samples.tsv as input, downloads any public data if necessary, and generates the pipeline's true input file:
+    ```bash
+    python pipeline/scripts/fetch_or_prompt.py
+    ```
+    This script creates `config/samples.resolved.tsv`, where all read paths are guaranteed to be local and valid. The Snakemake pipeline reads only from this file.
+    - This script creates `config/samples.resolved.tsv`, where all read paths are guaranteed to be local and valid. The Snakemake pipeline reads only from this file.
 
-1.  **Step 1: Convert Manifests to a Sample Sheet**
-    - The pipeline will automatically perform this step. It reads all manifests in `data/manifests/` and generates the primary pipeline input file: `config/samples.tsv`. This is handled by the `build_samples_from_manifests` rule.
 
-2.  **Step 2: (Optional) Fetch Public Data**
-    - If any sample in `config/samples.tsv` is missing a local read path but has a `biosample` or `srrs`, the `resolve_samples` rule will attempt to download the data from NCBI SRA.
-    - This generates the final, authoritative sample sheet: `config/samples.resolved.tsv`.
+### 8.3 Executing the Pipeline
 
-3.  **Step 3: Execute the Full Pipeline**
-    - From the root directory of the repository, run Snakemake. This will execute the entire workflow for all samples defined in your manifests.
-    - **Command**:
+Once `config/samples.resolved.tsv` is present, you can execute the entire workflow.
+
+1.  **Activate the Environment**:
       ```bash
-      # Run the entire pipeline for all samples using 8 cores
-      snakemake --cores 8 --use-conda --reason
+      conda activate bac-wgs-env
       ```
+2.  **Execute the Full Pipeline**:
+    - From the root directory of the repository, run Snakemake. This will execute the entire workflow for all samples defined in config/samples.resolved.tsv.
+    - Command:
+        ```bash
+        # Run the entire pipeline for all samples using all available cores
+        snakemake --cores all --use-conda --reason --snakefile pipeline/Snakefile
+        ```
 
-4.  **Step 4: Running on a Specific Sample or Target**
-    - You can also run the pipeline for a single sample or up to a specific step by specifying the target output file.
-    - **Example**: To generate the final polished assembly for only `SMP001`:
+3.  **Running on a Specific Target**:
+    - To generate a specific output file for a single sample (e.g., SMP001), provide that file as the target.
+    - Example:
       ```bash
-      snakemake --cores 8 --use-conda results/polish/SMP001/final_assembly.fasta
+      snakemake --cores 8 --use-conda results/SMP001/annotation/bakta/SMP001.gbff --snakefile pipeline/Snakefile
       ```
 
 ### 8.4 Pipeline Stages and Key Tools
 
-- **Read QC**: **NanoPlot** is run on all ONT reads. **FastQC** is run on illumina paired-end reads.
-- **Assembly**: **Flye** is the default assembler for ONT reads. **SPAdes** is the default assembler for illumina only short reads.
+- **Read QC**: **NanoPlot** is run on all ONT reads. **FastQC** is run on all Illumina paired-end reads.
+- **Assembly**: 
+   - for samples with ONT reads (hybrid or ONT-only):**Flye** is used for long-read assembly.
+   - For samples with only Illumina reads: **SPAdes** is used for short-read assembly.
 - **Polishing**: A multi-step polishing process is applied depending on the input data:
-  - For both ont-only and hybrid data:
-    - **Medaka**: One round of long-read polishing using a neural network model on the Flye assembly.
-  - For hybrid data:
-    - **pilon**: using illumina short reads to map and correct Indels and ambiguority in the Medaka-polished assembly.
-  - For illumina-only data:
-    - NO polishing is available.
+   - **ONT-only data**: The Flye assembly is polished once with Medaka.
+   - **Hybrid data (ONT + Illumina)**: The Flye assembly is first polished with Medaka (long-read), and the result is then polished with Pilon (short-read) for final error correction.
+   - **Illumina-only data**: No polishing is performed on the SPAdes assembly.
 - **Evaluation**: The final assembly is evaluated using:
   - **QUAST**: To compare against a reference genome and assess assembly quality metrics (N50, number of contigs, etc.).
-  - **Minimap2/Samtools**: To map reads back to the assembly and calculate mean coverage depth.
-- **Annotation**: The final polished assembly is annotated using **bakta**. Alternatively **Prokka** can be used. This can be changed in `config.yaml`.
+- **Annotation**: The final polished assembly is annotated using **Bakta** (default) or **Prokka**. The choice is configured in `config/config.yaml`.
 
 ### 8.5 Deliverables
 
-After a successful run for a sample (e.g., `SMP001`), the key outputs will be located in the `results/` directory:
+After a successful run, the key outputs for each sample are in the `results/` directory. The exact path to the final assembly depends on the input data type.
 
-- **Final Polished Assembly**: `results/polish/SMP001/final_assembly.fasta`
-- **Assembly Evaluation**: `results/evaluation/SMP001/quast/report.html`
-- **Coverage Report**: `results/evaluation/SMP001/depth.txt`
-- **Annotation**: `results/annotation/SMP001/prokka/SMP001.gff`
-- **Initial Read QC**: `results/qc/SMP001/nanoplot/NanoPlot-report.html`
+#### For examples:
+
+**For a hybrid sample (ONT + Illumina) named** `SMP001`:
+
+- Final Polished Assembly: `results/SMP001/polish/pilon/assembly.fasta`
+- Annotation: `results/SMP001/annotation/bakta/SMP001.gbff` (or `.../prokka/...gff`)
+
+**For an ONT-only sample named** `SMP002`:
+
+- Final Polished Assembly: `results/SMP002/polish/medaka/consensus.fasta`
+- Annotation: `results/SMP002/annotation/bakta/SMP002.gbff` (or `.../prokka/...gff`)
+
+**For an Illumina-only sample named** `SMP003`:
+
+- Final Assembly: `results/SMP003/assembly/spades/scaffolds.fasta`
+- Annotation: `results/SMP003/annotation/bakta/SMP003.gbff` (or `.../prokka/...gff`)
+
+**For all samples:**
+
+- **Assembly Evaluation**: `results/{sample}/evaluation/quast/report.html`
+- **Aggregate QC Report**: `results/multiqc_report.html`
 
 ## 9. Quality Control and Acceptance Criteria
 

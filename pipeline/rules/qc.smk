@@ -26,14 +26,14 @@ rule fastqc:
     input:
         reads=get_illumina_reads
     output:
-        done=touch("results/{sample}/qc/fastqc.done")
+        directory("results/{sample}/qc/fastqc")
     params:
         # FastQC needs a directory, derive it from the output flag file's location
-        outdir="results/{sample}/qc/fastqc"
+        outdir="{output}"
     log:
         "logs/qc/fastqc/{sample}.log"
     threads: 2
     conda:
         "../envs/fastqc.yaml"
     shell:
-        "fastqc --outdir {params.outdir} --threads {threads} {input} &> {log}"
+        "fastqc --outdir {params.outdir} --threads {threads} {input.reads} &> {log}"
