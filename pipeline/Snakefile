@@ -32,12 +32,7 @@ ASSEMBLY_SAMPLES = sorted(list(set(ONT_SAMPLES + ILLUMINA_SAMPLES)))
 FINAL_FILES = []
 
 # CORRECTED LOGIC: Use a list comprehension to call the helper functions for each sample.
-# This is the correct way to generate dynamic file paths. We create a simple
-# object that mimics Snakemake's wildcards object for the helper functions to use.
-class MockWildcards:
-    def __init__(self, sample):
-        self.sample = sample
-
+# The MockWildcards class is now defined in common.smk and available here.
 FINAL_FILES.extend([get_final_assemblies(MockWildcards(s)) for s in ASSEMBLY_SAMPLES])
 FINAL_FILES.extend([get_final_annotation(MockWildcards(s)) for s in ASSEMBLY_SAMPLES])
 

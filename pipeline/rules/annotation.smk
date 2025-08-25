@@ -43,7 +43,7 @@ rule download_bakta_db:
     shell:
         # The download command will place the database inside the output directory.
         # We redirect all output (stdout and stderr) to the log file.
-        "bakta_db download --output {output} --type {params.db_type} &> {log}"
+        "bakta_db download --output {params.outdir} --type {params.db_type} &> {log}"
 
 rule bakta:
     input:
@@ -74,10 +74,8 @@ rule prokka:
     output:
         gff="results/{sample}/annotation/prokka/{sample}.gff"
     params:
-        outdir="results/{sample}/annotation/prokka",
+        outdir=lambda wildcards, output: os.path.dirname(output.gff),
         prefix="{sample}",
-        # --- CORRECTED LINE ---
-        # Same for prokka for consistency and robustness.
         kingdom=config.get("prokka", {}).get("kingdom", "Bacteria")
     log:
         "logs/annotation/prokka/{sample}.log"

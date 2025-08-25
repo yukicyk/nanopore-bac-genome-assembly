@@ -9,13 +9,10 @@ rule flye:
     input:
         reads=lambda wc: SAMPLES_DF.loc[wc.sample, "ont_reads"]
     output:
-        # We only care about the final assembly FASTA.
         assembly="results/{sample}/assembly/flye/assembly.fasta"
     params:
-        # Get read type from config, e.g., "nano-hq"
         read_type=config["flye"]["read_type"],
-        # Flye needs an output directory to write its many files.
-        outdir="results/{sample}/assembly/flye/"
+        outdir=lambda wildcards, output: os.path.dirname(output.assembly)
     log:
         "logs/assembly/flye/{sample}.log"
     threads: 16
@@ -27,19 +24,17 @@ rule flye:
 
 rule spades:
     input:
-        # Get R1 and R2 from the sample sheet.
         r1=lambda wc: SAMPLES_DF.loc[wc.sample, "illumina_r1"],
         r2=lambda wc: SAMPLES_DF.loc[wc.sample, "illumina_r2"]
     output:
-        # SPAdes produces scaffolds.fasta, which is the file we want.
         assembly="results/{sample}/assembly/spades/scaffolds.fasta"
     params:
-        outdir="results/{sample}/assembly/spades/"
+        outdir=lambda wildcards, output: os.path.dirname(output.assembly)
     log:
         "logs/assembly/spades/{sample}.log"
     threads: 16
     conda:
-        "../envs/spades.yaml" # Assuming you have a spades.yaml
+        "../envs/spades.yaml"
     shell:
         "spades.py --pe1-1 {input.r1} --pe1-2 {input.r2} "
         "--outdir {params.outdir} --threads {threads} --careful &> {log}"

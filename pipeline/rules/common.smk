@@ -3,6 +3,13 @@
 # ================================================================= #
 # This file contains all the python functions in the pipeline for improved readability.
 
+import pandas as pd 
+
+# This class is used in the main Snakefile to generate final file paths.
+class MockWildcards:
+    def __init__(self, sample):
+        self.sample = sample
+
 # originally from Snakefile, global helper functions moved here
 def has_data(series):
     """Helper function to check for a valid, non-empty string path."""

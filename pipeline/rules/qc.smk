@@ -1,8 +1,7 @@
 # ================================================================= #
 #                         RULE: READ QC                             #
 # ================================================================= #
-
-
+import os
 
 # --- QC Rules ---
 
@@ -10,15 +9,15 @@ rule nanoplot:
     input:
         reads=get_ont_reads
     output:
-        # Using touch to create a placeholder file for the report
         report=touch("results/{sample}/qc/nanoplot/NanoPlot-report.html")
     params:
-        outdir="results/{sample}/qc/nanoplot"
+        # Dynamically get the output directory from the output file
+        outdir=lambda wildcards, output: os.path.dirname(output.report)
     log:
         "logs/qc/nanoplot/{sample}.log"
-    threads: config["threads"]["filtlong"] # A reasonable default
+    threads: config["threads"]["filtlong"]
     conda:
-        "../envs/nanoplot.yaml" # Assumed path
+        "../envs/nanoplot.yaml"
     shell:
         "NanoPlot --fastq {input.reads} --outdir {params.outdir} "
         "--threads {threads} &> {log}"
@@ -27,14 +26,14 @@ rule fastqc:
     input:
         reads=get_illumina_reads
     output:
-        # Using a flag file to mark completion, since FastQC creates a directory
         done=touch("results/{sample}/qc/fastqc.done")
     params:
+        # FastQC needs a directory, derive it from the output flag file's location
         outdir="results/{sample}/qc/fastqc"
     log:
         "logs/qc/fastqc/{sample}.log"
     threads: 2
     conda:
-        "../envs/fastqc.yaml" # Assumed path
+        "../envs/fastqc.yaml"
     shell:
         "fastqc --outdir {params.outdir} --threads {threads} {input} &> {log}"
