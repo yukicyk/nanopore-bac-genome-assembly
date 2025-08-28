@@ -137,10 +137,10 @@ The pipeline automates all steps from prepared reads to an annotated assembly. T
 
 For a complete understanding of the workflow, quality control procedures, and data governance, please refer to the documents in the `docs/` directory:
 
-- **SOP_ONT_bacterial_WGS.md:** The primary Standard Operating Procedure for the entire workflow.
-- **run_manifest_README.md:** Detailed guidance on how to fill out the run manifest.
-- **QC_Acceptance_Criteria.md:** Specific QC thresholds for accepting or rejecting a result.
-- **Validation_and_Verification_Plan.md:** The plan for validating the pipeline's performance.
+- **[SOP_ONT_bacterial_WGS.md](/docs/SOP_ONT_bacterial_WGS.md):** The primary Standard Operating Procedure for the entire workflow.
+- **[run_manifest_README.md](docs/run_manifest_README.md):** Detailed guidance on how to fill out the run manifest.
+- **[QC_Acceptance_Criteria.md](docs/QC_Acceptance_Criteria.md):** Specific QC thresholds for accepting or rejecting a result.
+- **[Validation_and_Verification_Plan.md](docs/Validation_and_Verification_Plan.md):** The plan for validating the pipeline's performance.
 
 ## Contributing
 
