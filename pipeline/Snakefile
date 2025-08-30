@@ -40,6 +40,10 @@ FINAL_FILES.extend([get_final_annotation(MockWildcards(s)) for s in ASSEMBLY_SAM
 FINAL_FILES.extend(expand("results/{sample}/evaluation/quast/", sample=ASSEMBLY_SAMPLES))
 FINAL_FILES.append("results/multiqc_report.html")
 
+# NEW: Add the plasmid detection results to the final targets, if enabled.
+if config["tools"]["plasmid_detection"]["enabled"]:
+    FINAL_FILES.extend(expand("results/{sample}/plasmid/mob_suite/contig_report.txt", sample=ASSEMBLY_SAMPLES))
+
 
 # --- 4. MASTER RULE: REQUEST ALL TARGETS ---
 rule all:
@@ -58,3 +62,6 @@ include: "rules/polish.smk"
 include: "rules/evaluation.smk"
 include: "rules/annotation.smk"
 include: "rules/report.smk"
+# NEW: Include the plasmid rule file.
+if config["tools"]["plasmid_detection"]["enabled"]:
+    include: "rules/plasmid.smk"

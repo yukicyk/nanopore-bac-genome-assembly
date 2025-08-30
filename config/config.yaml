@@ -84,11 +84,21 @@ annotation:
     gcode: 11  # Genetic code (11 = Bacterial, Archaeal and Plant Plastid)
   
   
-  
   # Bakta annotation settings
   bakta: 
     force: true  # Overwrite existing output
     threads: 8   # Number of threads to use
+
+tools:
+# NEW: A new section for plasmid detection
+  plasmid_detection:
+    # Enable or disable the entire plasmid analysis stage
+    enabled: true 
+    # The primary tool for post-assembly characterization
+    tool: "mob_suite" 
+    # MOB-suite requires a database. Define its location here.
+    mob_db_path: "resources/mob_db" 
+
 # -------------------------------------------------------------------
 # 4. GLOBAL THREAD & RESOURCE DEFAULTS
 # -------------------------------------------------------------------
