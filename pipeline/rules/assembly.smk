@@ -9,8 +9,12 @@ rule flye:
     input:
         reads=lambda wc: SAMPLES_DF.loc[wc.sample, "ont_reads"]
     output:
-        assembly="results/{sample}/assembly/flye/assembly.fasta"
+        assembly="results/{sample}/assembly/flye/assembly.fasta",
+        # Add the assembly_info.txt file. It tells us what Flye thinks is a plasmid.
+        info="results/{sample}/assembly/flye/assembly_info.txt",
+        graph="results/{sample}/assembly/flye/assembly_graph.gfa"
     params:
+        extra="--meta", # Add the --meta flag for better plasmid/chromosome separation
         read_type=config["flye"]["read_type"],
         outdir=lambda wildcards, output: os.path.dirname(output.assembly)
     log:
@@ -20,7 +24,7 @@ rule flye:
         "../envs/flye.yaml"
     shell:
         "flye --{params.read_type} {input.reads} "
-        "--out-dir {params.outdir} --threads {threads} &> {log}"
+        "--out-dir {params.outdir} --threads {threads} {params.extra} &> {log}"
 
 rule spades:
     input:
