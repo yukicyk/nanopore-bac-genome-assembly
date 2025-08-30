@@ -136,6 +136,7 @@ Once `config/samples.resolved.tsv` is present, you can execute the entire workfl
    - **Illumina-only data**: No polishing is performed on the SPAdes assembly.
 - **Evaluation**: The final assembly is evaluated using:
   - **QUAST**: To compare against a reference genome and assess assembly quality metrics (N50, number of contigs, etc.).
+- **Plasmid Identification**: The final polished assembly is analyzed with MOB-suite to identify and characterize plasmid-derived contigs. This tool predicts plasmid mobility and identifies known replicon families. For ONT-based assemblies, `Flye` is run with the `--plasmids flag` to aid in separating chromosomal and plasmid sequences.
 - **Annotation**: The final polished assembly is annotated using **Bakta** (default) or **Prokka**. The choice is configured in `config/config.yaml`.
 
 ### 8.5 Deliverables
@@ -163,6 +164,9 @@ After a successful run, the key outputs for each sample are in the `results/` di
 
 - **Assembly Evaluation**: `results/{sample}/evaluation/quast/report.html`
 - **Aggregate QC Report**: `results/multiqc_report.html`
+- **Plasmid Analysis**: `results/{sample}/plasmid_id/mob_suite/`
+   - `mob_recon_report.txt`: A summary of predicted plasmids, their quality, and mobility.
+   - `contig_report.txt`: A report classifying each input contig as chromosomal or plasmid-derived.
 
 ## 9. Quality Control and Acceptance Criteria
 

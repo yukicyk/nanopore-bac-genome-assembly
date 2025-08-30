@@ -45,9 +45,10 @@ The pipeline automates all steps from prepared reads to an annotated assembly. T
         E --> F["Genome Assembly <br> (Flye / SPAdes)"];
         F --> G["Assembly Polishing <br> (Medaka / Pilon)"];
         G --> H["Final High-Quality Assembly"];
-        H --> I["Evaluation (QUAST)"];
-        H --> J["Annotation (Bakta or Prokka)"];
-        E & I & J --> K["Final Summary Report <br> (MultiQC)"];
+        H --> I["Evaluation (**QUAST**)"];
+        H --> J["Annotation <br> (**Bakta** or **Prokka**)"];
+        H --> L["Plasmid Identification (**MOB-Suite**)"]
+        E & I & J & L --> K["Final Summary Report <br> (**MultiQC**)"];
         
     end
 
