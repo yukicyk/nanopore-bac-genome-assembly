@@ -26,6 +26,19 @@ rule flye:
         "flye --{params.read_type} {input.reads} "
         "--out-dir {params.outdir} --threads {threads} {params.extra} &> {log}"
 
+rule index_assembly: # New rule to index the assembly with samtools faidx, faciliate downstream polishing by medaka
+    input:
+        assembly="results/{sample}/assembly/flye/assembly.fasta"
+    output:
+        "results/{sample}/assembly/flye/assembly.fasta.fai"
+    log:
+        "logs/qc/samtools_faidx/{sample}.log"
+    threads: 2
+    conda:
+        "../envs/polish.yaml"
+    shell:
+        "samtools faidx {input.assembly} &> {log}"
+
 rule spades:
     input:
         r1=lambda wc: SAMPLES_DF.loc[wc.sample, "illumina_r1"],

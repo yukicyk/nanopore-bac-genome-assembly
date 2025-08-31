@@ -8,11 +8,13 @@
 rule medaka:
     input:
         assembly="results/{sample}/assembly/flye/assembly.fasta",
+        fai="results/{sample}/assembly/flye/assembly.fasta.fai", # Ensure the assembly is indexed
         reads=lambda wc: SAMPLES_DF.loc[wc.sample, "ont_reads"]
     output:
         assembly="results/{sample}/polish/medaka/consensus.fasta"
     params:
-        outdir=lambda wildcards, output: os.path.dirname(output.assembly)
+        outdir=lambda wildcards, output: os.path.dirname(output.assembly),
+        model=config["polishing"]["medaka_model"]
     log:
         "logs/polish/medaka/{sample}.log"
     threads: 8
@@ -20,7 +22,7 @@ rule medaka:
         "../envs/polish.yaml"
     shell:
         "medaka_consensus -i {input.reads} -d {input.assembly} "
-        "-o {params.outdir} -t {threads} -m r941_min_sup_g507 &> {log}"
+        "-o {params.outdir} -t {threads} -m {params.model} &> {log}" # Model should be defined in config
 
 rule pilon:
     input:
