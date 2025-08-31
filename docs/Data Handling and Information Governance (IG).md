@@ -73,5 +73,5 @@ This policy is guided by principles derived from the following standards and reg
 ## 6. Document Control
 | Version | Date       | Author(s) | Summary of Changes |
 | :---    | :---       | :---      | :---               |
-| 1.0     | YYYY-MM-DD |           | Initial draft.     |
+| 1.0     | 2025-08-21 | Dr. Y Chan| Initial draft      |
 |         |            |           |                    |
