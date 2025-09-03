@@ -21,7 +21,7 @@
 
 - Only one verified mappings are included here, and made public ( the 2019‑04‑01 run) to demonstrate the workflow for the bioproject.
 - Since the flowcell chemistry and packages for analysis have been updated, the current workflow in this repository is updated for future use.
-- The exact workflow used in the bioproject is documented in the original logs and documents stored in evidencee/legacy_logs
+- The exact workflow used in the bioproject is documented in the original logs and documents stored in `evidence/legacy_logs`
 - Other runs in this repository use mock manifests for demonstration and testing; they are clearly labeled as mock_*.tsv.
 - Publication/IP: Some Treponema data remain under collaborators’ publication rights. This repo links to NCBI for public records and withholds non‑public sample mappings.
 
