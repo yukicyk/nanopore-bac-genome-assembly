@@ -96,7 +96,7 @@ This document provides a template for detailing the investigation and resolution
 - **Measurement:** N/A - QUAST and other QC tools worked correctly and successfully identified the deviation.
 - **Environment:** N/A.
 
-[Example Fishbone (Ishikawa) Diagram created in Canva](./FishboneDiagram.png)
+![Example Fishbone (Ishikawa) Diagram created in Canva](./FishboneDiagram.png)
 
 #### 3.3. Root Cause Statement
 *Based on the investigation, state the single, most fundamental reason for the deviation. This should not be a restatement of the problem. A good root cause statement often points to a process or system failure.*
